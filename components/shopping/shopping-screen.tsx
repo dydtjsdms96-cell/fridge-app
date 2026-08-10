@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Check, Plus, ShoppingBag } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import { formatIngredientAmount } from "@/lib/format-amount";
 import type { ShoppingList, ShoppingListSource } from "@/types/database";
 import { AddShoppingSheet } from "@/components/shopping/add-shopping-sheet";
@@ -40,6 +40,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
       prev.map((i) => (i.id === item.id ? { ...i, checked: next } : i)),
     );
 
+    const supabase = createClient();
     const { error } = await supabase
       .from("shopping_list")
       .update({ checked: next })
@@ -61,6 +62,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
     quantity: number;
     unit: string | null;
   }) {
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("shopping_list")
       .insert({

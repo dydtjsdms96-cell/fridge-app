@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import type { FridgeItem, StorageZone } from "@/types/database";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import { ItemCard } from "@/components/fridge/item-card";
 import {
   ItemDetailSheet,
@@ -96,6 +96,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
       await handleRemove("consume");
       return;
     }
+    const supabase = createClient();
     const { error } = await supabase
       .from("fridge_items")
       .update({ quantity: newQuantity })
@@ -117,6 +118,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
   async function handleRemove(reason: ConfirmMode) {
     if (!selectedItem) return;
     const status = reason === "discard" ? "폐기" : "소진";
+    const supabase = createClient();
     const { error } = await supabase
       .from("fridge_items")
       .update({ status })
@@ -136,6 +138,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
     zone: StorageZone;
     category: string | null;
   }) {
+    const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -173,6 +176,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
       category: string;
     }[],
   ) {
+    const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();

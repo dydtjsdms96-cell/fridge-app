@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ChevronRight, LogOut } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { FridgeItem } from "@/types/database";
 
 type SettingsScreenProps = {
@@ -255,6 +255,7 @@ export function SettingsScreen({
   async function handleLogout() {
     if (loggingOut) return;
     setLoggingOut(true);
+    const supabase = createClient();
     const { error } = await supabase.auth.signOut();
     if (error) {
       console.error("[settings] signOut error:", error.message);
@@ -269,6 +270,7 @@ export function SettingsScreen({
   async function handleNotifyTimeChange(value: string) {
     setNotifyTime(value);
     setSavingTime(true);
+    const supabase = createClient();
     const { error } = await supabase
       .from("profiles")
       .update({ notify_time: value.length === 5 ? `${value}:00` : value })
@@ -284,6 +286,7 @@ export function SettingsScreen({
     if (exporting) return;
     setExporting(true);
     try {
+      const supabase = createClient();
       const { data, error } = await supabase
         .from("fridge_items")
         .select("*")

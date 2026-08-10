@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus, Snowflake, Thermometer, Box } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { StorageZone, StorageZoneRow } from "@/types/database";
 import { SwipeDeleteRow } from "@/components/settings/swipe-delete-row";
 
@@ -51,6 +51,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
     const label = draftLabel.trim();
     if (!label || busy) return;
     setBusy(true);
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("storage_zones")
       .insert({ user_id: userId, base_zone: baseZone, label })
@@ -72,6 +73,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
   async function deleteZone(id: string) {
     if (busy) return;
     setBusy(true);
+    const supabase = createClient();
     const { error } = await supabase.from("storage_zones").delete().eq("id", id);
     if (error) {
       console.error("[zones] delete:", error.message);

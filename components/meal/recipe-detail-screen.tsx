@@ -15,7 +15,7 @@ import {
   SERVING_OPTIONS,
   type ServingOption,
 } from "@/lib/servings-scale";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type {
   FridgeItem,
   Recipe,
@@ -102,6 +102,7 @@ export function RecipeDetailScreen({
   async function deductIngredients() {
     if (busy) return;
     setBusy(true);
+    const supabase = createClient();
 
     try {
       for (const ing of visibleIngredients) {

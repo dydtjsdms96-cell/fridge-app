@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus } from "lucide-react";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { Category } from "@/types/database";
 import { SwipeDeleteRow } from "@/components/settings/swipe-delete-row";
 
@@ -49,6 +49,7 @@ export function CategoriesScreen({
     const name = draftName.trim();
     if (!name || busy) return;
     setBusy(true);
+    const supabase = createClient();
     const { data, error } = await supabase
       .from("categories")
       .insert({ user_id: userId, name, icon: draftIcon })
@@ -72,6 +73,7 @@ export function CategoriesScreen({
     const name = draftName.trim();
     if (!name || busy) return;
     setBusy(true);
+    const supabase = createClient();
     const { error } = await supabase
       .from("categories")
       .update({ name, icon: draftIcon })
@@ -95,6 +97,7 @@ export function CategoriesScreen({
   async function deleteCategory(id: string) {
     if (busy) return;
     setBusy(true);
+    const supabase = createClient();
     const { error } = await supabase.from("categories").delete().eq("id", id);
     if (error) {
       console.error("[categories] delete:", error.message);

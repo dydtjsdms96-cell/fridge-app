@@ -8,7 +8,7 @@ import { ingredientNamesMatch } from "@/lib/recipe-match";
 import { isMildSeasoning } from "@/lib/servings-scale";
 import { placeMealRecipe } from "@/lib/meal-actions";
 import { getFoodEmoji } from "@/lib/food-emoji";
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import {
   getWeekDayDates,
   MEAL_SLOTS,
@@ -122,6 +122,7 @@ export function WeekPlanner({
     const existing = planMap[key];
     if (!existing) return;
 
+    const supabase = createClient();
     const { error } = await supabase
       .from("meal_plan")
       .delete()
@@ -142,6 +143,7 @@ export function WeekPlanner({
     if (shoppingBusy) return;
     setShoppingBusy(true);
     setShoppingMsg(null);
+    const supabase = createClient();
 
     try {
       const placedRecipeIds = new Set<string>();

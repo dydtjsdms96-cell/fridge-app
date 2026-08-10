@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { createClient } from "@/lib/supabase";
 import type { MealPlanEntry } from "@/lib/meal-plan-types";
 import type { MealSlot, WeekDay } from "@/lib/week";
 import { getWeekDayDates } from "@/lib/week";
@@ -15,6 +15,8 @@ export async function placeMealRecipe(params: {
   const week = getWeekDayDates(weekBase);
   const planDate = week.find((w) => w.day === day)?.date;
   if (!planDate) return { data: null, error: "invalid day" };
+
+  const supabase = createClient();
 
   // One recipe per slot: clear existing rows for this slot first
   await supabase
