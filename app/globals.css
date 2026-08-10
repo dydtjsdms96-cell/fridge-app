@@ -1,26 +1,116 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f5f4f0;
+  --foreground: #1b1b19;
+  --card: #ffffff;
+  --card-foreground: #1b1b19;
+  --primary: #3d7058;
+  --primary-foreground: #ffffff;
+  --secondary: #edf3ef;
+  --secondary-foreground: #2d5543;
+  --muted: #edebe6;
+  --muted-foreground: #9a9790;
+  --accent: #edf3ef;
+  --accent-foreground: #2d5543;
+  --destructive: #d95c45;
+  --destructive-foreground: #ffffff;
+  --border: rgba(27, 27, 25, 0.08);
+  --radius: 1rem;
+
+  --status-fresh-bg: #edf5f0;
+  --status-fresh: #3d7058;
+  --status-fresh-dot: #5a9e72;
+  --status-fresh-border: #c5e0d0;
+  --status-warn-bg: #fef9ec;
+  --status-warn: #9b7a1a;
+  --status-warn-dot: #d4a82a;
+  --status-warn-border: #f0dfa0;
+  --status-urgent-bg: #fef0ed;
+  --status-urgent: #c04d38;
+  --status-urgent-dot: #d95c45;
+  --status-urgent-border: #f5c4bb;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-status-fresh-bg: var(--status-fresh-bg);
+  --color-status-fresh: var(--status-fresh);
+  --color-status-fresh-dot: var(--status-fresh-dot);
+  --color-status-fresh-border: var(--status-fresh-border);
+  --color-status-warn-bg: var(--status-warn-bg);
+  --color-status-warn: var(--status-warn);
+  --color-status-warn-dot: var(--status-warn-dot);
+  --color-status-warn-border: var(--status-warn-border);
+  --color-status-urgent-bg: var(--status-urgent-bg);
+  --color-status-urgent: var(--status-urgent);
+  --color-status-urgent-dot: var(--status-urgent-dot);
+  --color-status-urgent-border: var(--status-urgent-border);
+  --font-sans: var(--font-noto-sans-kr);
+  --font-mono: var(--font-dm-mono);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-noto-sans-kr), "Noto Sans KR", sans-serif;
+}
+
+@keyframes voiceBar {
+  0%,
+  100% {
+    transform: scaleY(0.2);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes voiceTagIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes voicePulseRing {
+  from {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
 }

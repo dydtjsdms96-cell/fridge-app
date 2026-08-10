@@ -1,0 +1,119 @@
+export type StorageZone = "냉장" | "냉동" | "실온" | "김치냉장고";
+
+export type FridgeItemStatus = "보유" | "소진" | "폐기";
+
+export type FridgeInputMethod = "수동" | "음성" | "장보기전환";
+
+export type RecipeDifficulty = "쉬움" | "보통" | "어려움";
+
+export type MealType = "아침" | "점심" | "저녁";
+
+export type MealPlanStatus = "배치됨" | "완료" | "외식";
+
+export type ShoppingListSource = "자동_소진" | "자동_식단" | "수동";
+
+export interface RecipeStep {
+  step: number;
+  content: string;
+}
+
+export interface IngredientRef {
+  name: string;
+  aliases: string[] | null;
+  default_zone: StorageZone;
+  shelf_life_days: number;
+  category: string | null;
+}
+
+export interface Profile {
+  id: string;
+  notify_time: string | null;
+  created_at: string | null;
+}
+
+export interface Category {
+  id: string;
+  user_id: string;
+  name: string;
+  icon: string | null;
+  created_at: string | null;
+}
+
+/** User-defined sub-zone under a base StorageZone (e.g. 냉장 > 야채칸). */
+export interface StorageZoneRow {
+  id: string;
+  user_id: string;
+  base_zone: StorageZone;
+  label: string;
+  created_at: string | null;
+}
+
+export interface FridgeItem {
+  id: string;
+  user_id: string;
+  name: string;
+  category: string | null;
+  zone: StorageZone;
+  sub_zone: string | null;
+  quantity: number;
+  unit: string | null;
+  purchased_at: string | null;
+  expires_at: string | null;
+  status: FridgeItemStatus;
+  input_method: FridgeInputMethod | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface Recipe {
+  id: string;
+  title: string;
+  cook_minutes: number | null;
+  difficulty: RecipeDifficulty | null;
+  image_url: string | null;
+  steps: RecipeStep[] | null;
+  /** 재료량 기준 인분 (시드 기본 1) */
+  base_servings: number;
+  created_at: string | null;
+}
+
+export interface RecipeIngredient {
+  id: string;
+  recipe_id: string;
+  ingredient_name: string;
+  amount: number | null;
+  unit: string | null;
+  is_optional: boolean | null;
+}
+
+export interface MealPlan {
+  id: string;
+  user_id: string;
+  recipe_id: string | null;
+  plan_date: string;
+  meal_type: MealType;
+  label: string | null;
+  status: MealPlanStatus;
+  created_at: string | null;
+}
+
+export interface ShoppingList {
+  id: string;
+  user_id: string;
+  item_name: string;
+  quantity: number | null;
+  unit: string | null;
+  source: ShoppingListSource | null;
+  checked: boolean | null;
+  created_at: string | null;
+}
+
+export interface WasteLog {
+  id: string;
+  user_id: string;
+  item_name: string;
+  quantity: number | null;
+  unit: string | null;
+  estimated_price: number | null;
+  logged_at: string | null;
+}
