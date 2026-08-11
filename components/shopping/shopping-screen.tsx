@@ -89,7 +89,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4 pb-4 scrollbar-hide">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-4 scrollbar-hide sm:px-6 lg:px-8">
         <div className="mb-0.5 flex items-start justify-between gap-3">
           <h1 className="text-[22px] leading-[27.5px] font-bold text-foreground">
             쇼핑 목록
@@ -110,7 +110,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
           개 남음
         </p>
 
-        <div className="mb-6 space-y-2">
+        <div className="mb-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
           {pending.map((item) => (
             <ShoppingRow
               key={item.id}
@@ -120,7 +120,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
             />
           ))}
           {pending.length === 0 && (
-            <p className="py-6 text-center text-[13px] text-muted-foreground">
+            <p className="col-span-2 py-6 text-center text-[13px] text-muted-foreground sm:col-span-3 lg:col-span-4">
               살 게 없어요. +로 추가해 보세요
             </p>
           )}
@@ -131,7 +131,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
             <p className="mb-2.5 text-[11px] font-semibold tracking-[0.275px] text-muted-foreground uppercase">
               완료
             </p>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {done.map((item) => (
                 <ShoppingRow
                   key={item.id}
@@ -145,7 +145,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
         )}
       </div>
 
-      <div className="shrink-0 border-t border-border bg-background px-5 py-3">
+      <div className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={openCoupangBundle}
@@ -196,7 +196,7 @@ function ShoppingRow({
 
   return (
     <div
-      className={`flex items-center gap-3 rounded-[20px] px-4 py-3.5 ${
+      className={`flex h-full items-center gap-3 rounded-[20px] px-4 py-3.5 ${
         checked
           ? "bg-muted/50"
           : "border border-border bg-card shadow-[0_1px_6px_rgba(0,0,0,0.04)]"

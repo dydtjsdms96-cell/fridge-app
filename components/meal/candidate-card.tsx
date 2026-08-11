@@ -15,7 +15,7 @@ export function CandidateCard({ match, onAdd }: CandidateCardProps) {
   const missing = ingredients.filter((i) => !i.owned);
 
   return (
-    <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_6px_rgba(0,0,0,0.04)]">
+    <div className="flex h-full items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_6px_rgba(0,0,0,0.04)]">
       <Link
         href={`/meal/${recipe.id}`}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"

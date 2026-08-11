@@ -84,7 +84,7 @@ export function MealScreen({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="shrink-0 px-5 pt-4 pb-3">
+      <div className="shrink-0 px-4 pt-4 pb-3 sm:px-6 lg:px-8">
         <h1 className="mb-3 text-[22px] leading-[27.5px] font-bold text-foreground">
           식단 & 레시피
         </h1>
@@ -113,7 +113,7 @@ export function MealScreen({
 
       {subTab === "recipes" ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 gap-2 overflow-x-auto px-5 pb-4 scrollbar-hide">
+          <div className="flex shrink-0 gap-2 overflow-x-auto px-4 pb-4 scrollbar-hide sm:px-6 lg:px-8">
             {FILTER_CHIPS.map((chip) => (
               <button
                 key={chip.id}
@@ -130,14 +130,16 @@ export function MealScreen({
             ))}
           </div>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-8 scrollbar-hide">
-            {filtered.map((m) => (
-              <RecipeCard
-                key={m.recipe.id}
-                match={m}
-                onAdd={() => setPlacing(m)}
-              />
-            ))}
+          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 scrollbar-hide sm:px-6 lg:px-8">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {filtered.map((m) => (
+                <RecipeCard
+                  key={m.recipe.id}
+                  match={m}
+                  onAdd={() => setPlacing(m)}
+                />
+              ))}
+            </div>
             {filtered.length === 0 && (
               <div className="flex flex-col items-center gap-2 py-12">
                 <UtensilsCrossed

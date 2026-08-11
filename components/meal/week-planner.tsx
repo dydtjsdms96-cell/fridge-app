@@ -269,7 +269,7 @@ export function WeekPlanner({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-4 scrollbar-hide">
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide sm:px-6 lg:px-8">
         <div className="mb-3 flex gap-1.5">
           {WEEK_DAYS.map((day) => {
             const on = selectedDay === day;
@@ -366,7 +366,7 @@ export function WeekPlanner({
                 {ready.length}개
               </span>
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {ready.map((m) => (
                 <CandidateCard
                   key={m.recipe.id}
@@ -378,7 +378,7 @@ export function WeekPlanner({
                 />
               ))}
               {ready.length === 0 && (
-                <p className="py-2 text-[12px] text-muted-foreground">
+                <p className="col-span-2 py-2 text-[12px] text-muted-foreground sm:col-span-3 lg:col-span-4">
                   지금 바로 만들 수 있는 요리가 없어요
                 </p>
               )}
@@ -395,7 +395,7 @@ export function WeekPlanner({
                 {plusOne.length}개
               </span>
             </div>
-            <div className="space-y-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
               {plusOne.map((m) => (
                 <CandidateCard
                   key={m.recipe.id}
@@ -407,7 +407,7 @@ export function WeekPlanner({
                 />
               ))}
               {plusOne.length === 0 && (
-                <p className="py-2 text-[12px] text-muted-foreground">
+                <p className="col-span-2 py-2 text-[12px] text-muted-foreground sm:col-span-3 lg:col-span-4">
                   +1 후보 요리가 없어요
                 </p>
               )}
@@ -416,7 +416,7 @@ export function WeekPlanner({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-border bg-background px-5 py-3">
+      <div className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6 lg:px-8">
         {shoppingMsg && (
           <p className="mb-2 text-center text-[11px] font-medium text-muted-foreground">
             {shoppingMsg}

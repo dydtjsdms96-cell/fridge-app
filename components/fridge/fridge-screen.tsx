@@ -236,7 +236,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="flex-1 overflow-y-auto pb-8 scrollbar-hide">
-        <div className="px-5 pt-4 pb-3">
+        <div className="px-4 pt-4 pb-3 sm:px-6 lg:px-8">
           <h1 className="mb-3 text-[22px] font-bold leading-[27.5px] text-foreground">
             냉장고
           </h1>
@@ -251,7 +251,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
           </div>
         </div>
 
-        <div className="mb-2.5 flex gap-2 overflow-x-auto px-5 scrollbar-hide">
+        <div className="mb-2.5 flex gap-2 overflow-x-auto px-4 scrollbar-hide sm:px-6 lg:px-8">
           {ZONE_FILTERS.map((z) => (
             <button
               key={z}
@@ -268,7 +268,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
           ))}
         </div>
 
-        <div className="mb-4 flex gap-2 overflow-x-auto px-5 scrollbar-hide">
+        <div className="mb-4 flex gap-2 overflow-x-auto px-4 scrollbar-hide sm:px-6 lg:px-8">
           {CATEGORY_FILTERS.map((cat) => (
             <button
               key={cat}
@@ -285,7 +285,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
           ))}
         </div>
 
-        <div className="mb-3 px-5">
+        <div className="mb-3 px-4 sm:px-6 lg:px-8">
           <p className="text-[11px] text-muted-foreground">
             총{" "}
             <span className="font-mono font-medium text-foreground">
@@ -295,7 +295,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 px-5">
+        <div className="grid grid-cols-2 gap-3 px-4 sm:grid-cols-3 sm:px-6 lg:grid-cols-4 lg:px-8">
           {filtered.map((item) => (
             <ItemCard
               key={item.id}
@@ -304,7 +304,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
             />
           ))}
           {filtered.length === 0 && (
-            <div className="col-span-2 flex flex-col items-center gap-2 py-12">
+            <div className="col-span-2 flex flex-col items-center gap-2 py-12 sm:col-span-3 lg:col-span-4">
               <span className="text-3xl opacity-30">
                 {items.length === 0 ? "🧊" : "🔍"}
               </span>
