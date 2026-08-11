@@ -31,7 +31,7 @@ export function CandidateCard({ match, onAdd }: CandidateCardProps) {
                 <Clock size={9} aria-hidden /> {recipe.cook_minutes}분
               </span>
             )}
-            <span className="font-mono text-[10px] text-muted-foreground">
+            <span className="text-[10px] tabular-nums text-muted-foreground">
               재료 {ownedCount}/{totalCount}
             </span>
             {missing[0] && (

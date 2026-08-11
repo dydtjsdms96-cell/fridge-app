@@ -1,6 +1,16 @@
-export type ExpiryStatus = "fresh" | "warn" | "urgent" | "unset";
+export type ExpiryStatus = "fresh" | "warn" | "urgent" | "unset" | "none";
 
 const APP_TIME_ZONE = "Asia/Seoul";
+
+/** Categories that default to "유통기한 없음". */
+const NO_EXPIRY_CATEGORY_KEYS = [
+  "양념",
+  "조미료",
+  "완성",
+  "요리",
+  "소스",
+  "향신료",
+] as const;
 
 /** Calendar YYYY-MM-DD in app timezone (SSR/client match). */
 export function ymdInAppTz(date = new Date()): string {
@@ -92,6 +102,13 @@ export function defaultExpiresAt(
   return addDaysYmd(fromDate, defaultShelfLifeDays(name, category));
 }
 
+/** 양념·조미료·완성 요리 등 장기/무기한 보관 카테고리 여부 */
+export function isNoExpiryCategory(category?: string | null): boolean {
+  const c = (category ?? "").trim();
+  if (!c) return false;
+  return NO_EXPIRY_CATEGORY_KEYS.some((key) => c.includes(key));
+}
+
 /** expires_at(YYYY-MM-DD) − 오늘(Asia/Seoul) 일수 */
 export function getDDay(expiresAt: string | null): number | null {
   if (!expiresAt) return null;
@@ -100,15 +117,38 @@ export function getDDay(expiresAt: string | null): number | null {
   return daysBetweenYmd(ymdInAppTz(), expiresYmd);
 }
 
-export function getExpiryStatus(dDay: number | null): ExpiryStatus {
+export function getExpiryStatus(
+  dDay: number | null,
+  hasNoExpiry = false,
+): ExpiryStatus {
+  if (hasNoExpiry) return "none";
   if (dDay === null) return "unset";
   if (dDay <= 3) return "urgent";
   if (dDay <= 7) return "warn";
   return "fresh";
 }
 
-export function formatDDay(dDay: number | null): string {
+export function formatDDay(dDay: number | null, hasNoExpiry = false): string {
+  if (hasNoExpiry) return "무기한";
   if (dDay === null) return "유통기한 미설정";
   if (dDay < 0) return `D+${Math.abs(dDay)}`;
   return `D-${dDay}`;
+}
+
+/** Short badge text for compact slots (home zone cards). */
+export function formatDDayShort(
+  dDay: number | null,
+  hasNoExpiry = false,
+): string {
+  if (hasNoExpiry) return "무기한";
+  if (dDay === null) return "—";
+  if (dDay < 0) return `+${Math.abs(dDay)}`;
+  return `D-${dDay}`;
+}
+
+/** Items with a real expiry that can appear in 임박/만료/알림. */
+export function isExpiryTracked(item: {
+  has_no_expiry?: boolean | null;
+}): boolean {
+  return !item.has_no_expiry;
 }

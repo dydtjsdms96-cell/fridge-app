@@ -4,12 +4,19 @@ import { FridgeScreen } from "@/components/fridge/fridge-screen";
 
 type FridgeAppProps = {
   initialItems: FridgeItem[];
+  initialRecentArchived?: FridgeItem[];
 };
 
-export function FridgeApp({ initialItems }: FridgeAppProps) {
+export function FridgeApp({
+  initialItems,
+  initialRecentArchived = [],
+}: FridgeAppProps) {
   return (
     <AppShell activeTab="fridge">
-      <FridgeScreen initialItems={initialItems} />
+      <FridgeScreen
+        initialItems={initialItems}
+        initialRecentArchived={initialRecentArchived}
+      />
     </AppShell>
   );
 }

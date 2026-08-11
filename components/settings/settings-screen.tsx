@@ -69,6 +69,7 @@ function toCsv(items: FridgeItem[]): string {
     "unit",
     "purchased_at",
     "expires_at",
+    "has_no_expiry",
     "status",
     "input_method",
     "created_at",
@@ -85,6 +86,7 @@ function toCsv(items: FridgeItem[]): string {
       item.unit ?? "",
       item.purchased_at ?? "",
       item.expires_at ?? "",
+      item.has_no_expiry ? "true" : "false",
       item.status,
       item.input_method ?? "",
       item.created_at ?? "",
@@ -129,7 +131,7 @@ function MonthlyReportCard({ month }: { month: number }) {
             aria-hidden
           />
           <div className="absolute inset-[14px] flex flex-col items-center justify-center rounded-full bg-card">
-            <span className="font-mono text-[20px] font-medium leading-5 text-foreground">
+            <span className="min-w-[3ch] text-center text-[20px] font-medium leading-5 text-foreground tabular-nums">
               77%
             </span>
             <span className="text-[9px] tracking-tight text-muted-foreground">
@@ -145,7 +147,7 @@ function MonthlyReportCard({ month }: { month: number }) {
               소비됨
             </span>
           </div>
-          <p className="mt-0.5 font-mono text-[22px] font-medium leading-[22px] text-foreground">
+          <p className="mt-0.5 min-w-[2ch] text-[22px] font-medium leading-[22px] text-foreground tabular-nums">
             23
             <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">
               개
@@ -158,7 +160,7 @@ function MonthlyReportCard({ month }: { month: number }) {
               폐기됨
             </span>
           </div>
-          <p className="mt-0.5 font-mono text-[22px] font-medium leading-[22px] text-foreground">
+          <p className="mt-0.5 min-w-[2ch] text-[22px] font-medium leading-[22px] text-foreground tabular-nums">
             7
             <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">
               개
@@ -176,7 +178,7 @@ function MonthlyReportCard({ month }: { month: number }) {
         <div className="min-w-0">
           <p className="text-[12px] font-bold leading-[16.5px] text-foreground">
             이번 달 약{" "}
-            <span className="font-mono font-medium">12,600</span>
+            <span className="font-medium tabular-nums">12,600</span>
             원어치를 날렸어요
           </p>
           <p className="mt-0.5 text-[11px] leading-[16.5px] text-muted-foreground">
@@ -378,7 +380,7 @@ export function SettingsScreen({
                   </p>
                 </div>
                 <span
-                  className="rounded-full px-2 py-0.5 font-mono text-[11px] font-medium leading-[16.5px]"
+                  className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-[16.5px] tabular-nums"
                   style={{ color: row.text, backgroundColor: row.bg }}
                 >
                   {row.example}
@@ -410,7 +412,7 @@ export function SettingsScreen({
                 type="time"
                 value={notifyTime}
                 onChange={(e) => handleNotifyTimeChange(e.target.value)}
-                className="rounded-xl border border-border bg-background px-3 py-2 font-mono text-[13px] text-foreground outline-none focus:border-primary"
+                className="rounded-xl border border-border bg-background px-3 py-2 text-[13px] text-foreground tabular-nums outline-none focus:border-primary"
                 aria-label="알림 시간"
                 disabled={savingTime}
               />

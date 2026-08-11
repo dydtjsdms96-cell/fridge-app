@@ -20,5 +20,6 @@ To replace with your final artwork later:
   3. Optional legacy fallbacks: mipmap-*/ic_launcher.png + ic_launcher_round.png
 
 Splash:
-  - drawable/splash.xml + drawable/splash_logo.xml
-  - Brand color #2E5B4C
+  - drawable/splash.xml (layer-list) + drawable/splash_logo.xml (vector)
+  - Brand color #2E5B4C via @color/splash_background
+  - Do NOT add splash.png — same resource name conflicts with splash.xml

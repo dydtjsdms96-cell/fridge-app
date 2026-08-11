@@ -6,6 +6,7 @@ import {
   Check,
   Minus,
   Plus,
+  RotateCcw,
   Snowflake,
   Thermometer,
   Trash2,
@@ -23,6 +24,11 @@ import { formatQuantity } from "@/lib/quantity";
 import { EXPIRY_STYLES } from "@/components/home/expiry-styles";
 
 export type ConfirmMode = "consume" | "discard";
+
+export type SaveExpiresPayload = {
+  expires_at: string | null;
+  has_no_expiry: boolean;
+};
 
 function ZoneIcon({ zone }: { zone: string }) {
   if (zone === "냉동") return <Snowflake size={10} />;
@@ -103,8 +109,9 @@ type ItemDetailSheetProps = {
   item: FridgeItem;
   onClose: () => void;
   onSavePartial: (newQuantity: number) => void;
-  onSaveExpires: (expiresAt: string) => void | Promise<void>;
+  onSaveExpires: (payload: SaveExpiresPayload) => void | Promise<void>;
   onRemove: (reason: ConfirmMode) => void;
+  onRepurchase?: () => void;
 };
 
 export function ItemDetailSheet({
@@ -113,19 +120,27 @@ export function ItemDetailSheet({
   onSavePartial,
   onSaveExpires,
   onRemove,
+  onRepurchase,
 }: ItemDetailSheetProps) {
-  const dDay = getDDay(item.expires_at);
-  const s = EXPIRY_STYLES[getExpiryStatus(dDay)];
+  const isArchived = item.status === "소진" || item.status === "폐기";
+  const hasNoExpiryStored = Boolean(item.has_no_expiry);
+  const dDay = hasNoExpiryStored ? null : getDDay(item.expires_at);
+  const s = EXPIRY_STYLES[getExpiryStatus(dDay, hasNoExpiryStored)];
   const [usagePct, setUsagePct] = useState(0);
   const [memo, setMemo] = useState("");
   const [confirmMode, setConfirmMode] = useState<ConfirmMode | null>(null);
+  const [hasNoExpiry, setHasNoExpiry] = useState(hasNoExpiryStored);
   const [expiresAt, setExpiresAt] = useState(
-    () => item.expires_at?.slice(0, 10) ?? defaultExpiresAt(item.name, item.category),
+    () =>
+      item.expires_at?.slice(0, 10) ??
+      defaultExpiresAt(item.name, item.category),
   );
   const [savingExpires, setSavingExpires] = useState(false);
   const today = ymdInAppTz();
   const expiresDirty =
-    (item.expires_at?.slice(0, 10) ?? "") !== expiresAt;
+    hasNoExpiry !== hasNoExpiryStored ||
+    (!hasNoExpiry &&
+      (item.expires_at?.slice(0, 10) ?? "") !== expiresAt);
 
   const remainingValue = Math.max(
     0,
@@ -170,7 +185,12 @@ export function ItemDetailSheet({
           <div className="px-5 pt-3 pb-4">
             <div className="flex items-start gap-4">
               <div className="flex size-[68px] shrink-0 items-center justify-center rounded-2xl border border-border bg-background">
-                <FoodIcon name={item.name} category={item.category} size={40} />
+                <FoodIcon
+                  name={item.name}
+                  category={item.category}
+                  itemType={item.item_type}
+                  size={40}
+                />
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className="text-[20px] font-bold leading-tight text-foreground">
@@ -180,23 +200,47 @@ export function ItemDetailSheet({
                   {item.category ?? "기타"}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  {(item.item_type === "완성요리" ||
+                    item.category === "완성요리") && (
+                    <span className="rounded-full bg-[#fff4e8] px-2 py-0.5 text-[10px] font-semibold text-[#c47a2c]">
+                      완성요리
+                    </span>
+                  )}
                   <span
                     className={`flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.badge}`}
                   >
                     <ZoneIcon zone={item.zone} />
                     <span className="ml-0.5">{item.zone}</span>
                   </span>
-                  <span
-                    className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${s.bg}`}
-                  >
+                  {isArchived ? (
                     <span
-                      className="size-1.5 shrink-0 rounded-full"
-                      style={{ backgroundColor: s.dot }}
-                    />
-                    <span className={`font-mono text-[11px] font-semibold ${s.text}`}>
-                      {formatDDay(dDay)}
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                        item.status === "폐기"
+                          ? "bg-status-urgent-bg text-status-urgent"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {item.status}
                     </span>
-                  </span>
+                  ) : (
+                    <span
+                      className={`flex items-center gap-1 rounded-full px-2 py-0.5 ${s.bg}`}
+                    >
+                      <span
+                        className="size-1.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: s.dot }}
+                      />
+                      <span
+                        className={`${
+                          hasNoExpiryStored || dDay === null
+                            ? "text-[11px] font-semibold"
+                            : "text-[11px] font-semibold tabular-nums"
+                        } ${s.text}`}
+                      >
+                        {formatDDay(dDay, hasNoExpiryStored)}
+                      </span>
+                    </span>
+                  )}
                   {addedLabel && (
                     <span className="text-[10px] text-muted-foreground">
                       {addedLabel} 등록
@@ -207,29 +251,92 @@ export function ItemDetailSheet({
             </div>
           </div>
 
+          {isArchived ? (
+            <>
+              <div className="mx-5 h-px bg-border" />
+              <div className="px-5 py-4">
+                <p className="text-[13px] leading-relaxed text-muted-foreground">
+                  {item.status === "폐기" ? "폐기" : "소진"}된 항목이에요.
+                  같은 이름·구역·단위로 다시 등록할 수 있어요.
+                </p>
+                <p className="mt-2 text-[12px] text-muted-foreground">
+                  마지막 수량{" "}
+                  <span className="font-semibold text-foreground tabular-nums">
+                    {quantityLabel}
+                  </span>
+                </p>
+              </div>
+              <div className="space-y-2.5 px-5 py-4 pb-10">
+                {onRepurchase && (
+                  <button
+                    type="button"
+                    onClick={onRepurchase}
+                    className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3.5 text-[13px] font-bold text-primary-foreground shadow-[0_4px_16px_rgba(61,112,88,0.3)] transition-transform active:scale-[0.98]"
+                  >
+                    <RotateCcw size={16} strokeWidth={2.5} />
+                    다시 구매
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full rounded-xl border border-border bg-muted py-3 text-[12px] font-semibold text-foreground transition-transform active:scale-[0.98]"
+                >
+                  닫기
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
           <div className="mx-5 h-px bg-border" />
 
           <div className="px-5 py-4">
             <p className="mb-2.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
               유통기한
             </p>
+            <label className="mb-2 flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={hasNoExpiry}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setHasNoExpiry(checked);
+                  if (!checked && !expiresAt) {
+                    setExpiresAt(
+                      defaultExpiresAt(item.name, item.category, today),
+                    );
+                  }
+                }}
+                className="size-4 accent-primary"
+              />
+              <span className="text-[13px] font-medium text-foreground">
+                유통기한 없음
+              </span>
+            </label>
             <div className="flex items-center gap-2">
               <input
-                required
                 type="date"
                 value={expiresAt}
                 min={today}
+                disabled={hasNoExpiry}
                 onChange={(e) => setExpiresAt(e.target.value)}
-                className="min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-3.5 py-3 text-[14px] outline-none focus:border-primary"
+                className="min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-3.5 py-3 text-[14px] outline-none focus:border-primary disabled:cursor-not-allowed disabled:opacity-50"
               />
               <button
                 type="button"
-                disabled={!expiresDirty || !expiresAt || savingExpires}
+                disabled={
+                  !expiresDirty ||
+                  savingExpires ||
+                  (!hasNoExpiry && !expiresAt)
+                }
                 onClick={async () => {
-                  if (!expiresAt) return;
+                  if (!hasNoExpiry && !expiresAt) return;
                   setSavingExpires(true);
                   try {
-                    await onSaveExpires(expiresAt);
+                    await onSaveExpires({
+                      expires_at: hasNoExpiry ? null : expiresAt,
+                      has_no_expiry: hasNoExpiry,
+                    });
                   } finally {
                     setSavingExpires(false);
                   }
@@ -239,9 +346,14 @@ export function ItemDetailSheet({
                 {savingExpires ? "저장…" : "저장"}
               </button>
             </div>
-            {!item.expires_at && (
+            {!hasNoExpiryStored && !item.expires_at && !hasNoExpiry && (
               <p className="mt-1.5 text-[10px] text-status-warn">
                 유통기한이 없어 기본값으로 채워 두었어요. 확인하고 저장해 주세요.
+              </p>
+            )}
+            {hasNoExpiry && (
+              <p className="mt-1.5 text-[10px] text-muted-foreground">
+                무기한으로 저장되며 임박·만료 알림 대상에서 제외돼요.
               </p>
             )}
           </div>
@@ -256,7 +368,7 @@ export function ItemDetailSheet({
             <div className="mb-3 flex items-center gap-3">
               <div className="flex-1 rounded-xl bg-muted/60 px-3 py-2.5 text-center">
                 <p className="mb-0.5 text-[10px] text-muted-foreground">현재 보유</p>
-                <p className="font-mono text-[17px] font-bold text-foreground">
+                <p className="text-[17px] font-bold tabular-nums text-foreground">
                   {quantityLabel}
                 </p>
               </div>
@@ -268,7 +380,7 @@ export function ItemDetailSheet({
               >
                 <p className="mb-0.5 text-[10px] text-muted-foreground">사용 후 잔량</p>
                 <p
-                  className={`font-mono text-[17px] font-bold transition-colors ${
+                  className={`text-[17px] font-bold tabular-nums transition-colors ${
                     usagePct === 100
                       ? "text-[#C04D38] line-through"
                       : "text-[#3D7058]"
@@ -290,7 +402,7 @@ export function ItemDetailSheet({
               <span className="text-[12px] font-medium text-[#3D7058]">
                 이번에 사용하는 양
               </span>
-              <span className="font-mono text-[13px] font-bold text-[#3D7058]">
+              <span className="text-[13px] font-bold tabular-nums text-[#3D7058]">
                 {formatQuantity(usedValue, item.unit)}
               </span>
             </div>
@@ -334,10 +446,10 @@ export function ItemDetailSheet({
                 <Minus size={14} className="text-foreground" />
               </button>
               <div className="text-center">
-                <span className="font-mono text-[28px] font-bold leading-none text-foreground">
+                <span className="text-[28px] font-bold leading-none text-foreground tabular-nums">
                   {usagePct}
                 </span>
-                <span className="font-mono text-[14px] text-muted-foreground">%</span>
+                <span className="text-[14px] text-muted-foreground">%</span>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">사용</p>
               </div>
               <button
@@ -397,6 +509,8 @@ export function ItemDetailSheet({
               </button>
             </div>
           </div>
+            </>
+          )}
         </div>
 
         {confirmMode && (

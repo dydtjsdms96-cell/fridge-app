@@ -16,6 +16,14 @@ import {
   type ServingOption,
 } from "@/lib/servings-scale";
 import { createClient } from "@/lib/supabase";
+import {
+  isCookedDish,
+  saveFridgeItem,
+} from "@/lib/fridge-item-upsert";
+import {
+  CookedDishAddSheet,
+  type CookedDishPayload,
+} from "@/components/fridge/cooked-dish-add-sheet";
 import type {
   FridgeItem,
   Recipe,
@@ -50,10 +58,12 @@ export function RecipeDetailScreen({
 
   const fridgeStock = useMemo(
     () =>
-      fridgeItems.map((i) => ({
-        name: i.name,
-        quantity: Number(i.quantity) || 0,
-      })),
+      fridgeItems
+        .filter((i) => !isCookedDish(i))
+        .map((i) => ({
+          name: i.name,
+          quantity: Number(i.quantity) || 0,
+        })),
     [fridgeItems],
   );
   const steps = useMemo(() => {
@@ -73,6 +83,8 @@ export function RecipeDetailScreen({
 
   const [checkedSteps, setCheckedSteps] = useState<Set<number>>(() => new Set());
   const [showDeductConfirm, setShowDeductConfirm] = useState(false);
+  const [showCookedPrompt, setShowCookedPrompt] = useState(false);
+  const [showCookedSheet, setShowCookedSheet] = useState(false);
   const [busy, setBusy] = useState(false);
   const [unitMode, setUnitMode] = useState<AmountUnitMode>("natural");
 
@@ -111,6 +123,7 @@ export function RecipeDetailScreen({
         const fridgeItem = fridgeItems.find(
           (f) =>
             f.status === "보유" &&
+            !isCookedDish(f) &&
             ingredientNamesMatch(f.name, ing.ingredient_name),
         );
         if (!fridgeItem) continue;
@@ -132,12 +145,47 @@ export function RecipeDetailScreen({
           if (error) console.error("[cook] deduct error:", error.message);
         }
       }
-      router.push("/meal");
-      router.refresh();
     } finally {
       setBusy(false);
       setShowDeductConfirm(false);
+      setShowCookedPrompt(true);
     }
+  }
+
+  function skipDeductAndAskCooked() {
+    setShowDeductConfirm(false);
+    setShowCookedPrompt(true);
+  }
+
+  function finishCooking() {
+    setShowCookedPrompt(false);
+    setShowCookedSheet(false);
+    router.push("/meal");
+    router.refresh();
+  }
+
+  async function handleCookedDishAdd(payload: CookedDishPayload) {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("로그인이 필요해요");
+
+    await saveFridgeItem(
+      user.id,
+      {
+        ...payload,
+        sub_zone: null,
+        category: "완성요리",
+        item_type: "완성요리",
+        input_method: "수동",
+      },
+      {
+        supabase,
+        ownedItems: fridgeItems,
+        resolveDuplicate: async () => "separate",
+      },
+    );
   }
 
   return (
@@ -211,7 +259,7 @@ export function RecipeDetailScreen({
                 >
                   <Minus size={14} />
                 </button>
-                <span className="min-w-[3.25rem] text-center font-mono text-[18px] font-bold tabular-nums text-foreground">
+                <span className="min-w-[3.25rem] text-center text-[18px] font-bold tabular-nums text-foreground">
                   {servings}
                   <span className="ml-0.5 text-[12px] font-semibold text-muted-foreground">
                     인분
@@ -359,7 +407,7 @@ export function RecipeDetailScreen({
                     className="flex w-full items-start gap-3 text-left"
                   >
                     <span
-                      className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-medium font-mono ${
+                      className={`flex size-7 shrink-0 items-center justify-center rounded-full border-2 text-[11px] font-medium tabular-nums ${
                         checked
                           ? "border-primary bg-primary text-primary-foreground"
                           : "border-border text-muted-foreground"
@@ -420,7 +468,7 @@ export function RecipeDetailScreen({
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
-                onClick={() => setShowDeductConfirm(false)}
+                onClick={skipDeductAndAskCooked}
                 className="rounded-xl bg-muted py-3 text-[13px] font-semibold text-foreground transition-transform active:scale-95"
               >
                 아니오
@@ -428,7 +476,7 @@ export function RecipeDetailScreen({
               <button
                 type="button"
                 disabled={busy}
-                onClick={deductIngredients}
+                onClick={() => void deductIngredients()}
                 className="rounded-xl bg-primary py-3 text-[13px] font-semibold text-primary-foreground transition-transform active:scale-95 disabled:opacity-60"
               >
                 예
@@ -436,6 +484,54 @@ export function RecipeDetailScreen({
             </div>
           </div>
         </div>
+      )}
+
+      {showCookedPrompt && (
+        <div
+          className="absolute inset-0 z-[70] flex items-center justify-center p-6"
+          style={{ background: "rgba(0,0,0,0.55)" }}
+        >
+          <div className="w-full rounded-3xl bg-card p-6 shadow-[0_24px_60px_rgba(0,0,0,0.3)]">
+            <h3 className="mb-2 text-center text-[17px] font-bold text-foreground">
+              완성된 요리를 냉장고에 남은 음식으로 등록할까요?
+            </h3>
+            <p className="mb-6 text-center text-[12px] text-muted-foreground">
+              <span className="font-semibold text-foreground">
+                {recipe.title}
+              </span>
+              을(를) 유통기한 3일 기본값으로 남겨 둘 수 있어요.
+            </p>
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={finishCooking}
+                className="rounded-xl bg-muted py-3 text-[13px] font-semibold text-foreground transition-transform active:scale-95"
+              >
+                아니오
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCookedPrompt(false);
+                  setShowCookedSheet(true);
+                }}
+                className="rounded-xl bg-primary py-3 text-[13px] font-semibold text-primary-foreground transition-transform active:scale-95"
+              >
+                예
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCookedSheet && (
+        <CookedDishAddSheet
+          title="남은 음식 등록"
+          initialName={recipe.title}
+          initialQuantityLabel={`${servings}인분`}
+          onClose={finishCooking}
+          onSubmit={handleCookedDishAdd}
+        />
       )}
     </div>
   );

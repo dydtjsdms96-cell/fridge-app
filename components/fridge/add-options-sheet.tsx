@@ -1,12 +1,14 @@
 "use client";
 
-import { Camera, Keyboard, Mic, X } from "lucide-react";
+import { Camera, CookingPot, Keyboard, Mic, ScanBarcode, X } from "lucide-react";
 
 type AddOptionsSheetProps = {
   onClose: () => void;
   onSelectManual: () => void;
   onSelectVoice: () => void;
   onSelectReceipt: () => void;
+  onSelectBarcode: () => void;
+  onSelectCookedDish: () => void;
 };
 
 export function AddOptionsSheet({
@@ -14,6 +16,8 @@ export function AddOptionsSheet({
   onSelectManual,
   onSelectVoice,
   onSelectReceipt,
+  onSelectBarcode,
+  onSelectCookedDish,
 }: AddOptionsSheetProps) {
   return (
     <div
@@ -79,6 +83,22 @@ export function AddOptionsSheet({
 
           <button
             type="button"
+            onClick={onSelectBarcode}
+            className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background px-4 py-4 text-left transition-transform active:scale-[0.98]"
+          >
+            <div className="flex size-11 items-center justify-center rounded-xl bg-[#edf3ef] text-primary">
+              <ScanBarcode size={20} />
+            </div>
+            <div>
+              <p className="text-[14px] font-bold text-foreground">바코드 스캔</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                상품 바코드로 빠르게 불러와요
+              </p>
+            </div>
+          </button>
+
+          <button
+            type="button"
             onClick={onSelectReceipt}
             className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background px-4 py-4 text-left transition-transform active:scale-[0.98]"
           >
@@ -89,6 +109,24 @@ export function AddOptionsSheet({
               <p className="text-[14px] font-bold text-foreground">영수증 촬영</p>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
                 영수증 사진으로 재료를 불러와요
+              </p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={onSelectCookedDish}
+            className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background px-4 py-4 text-left transition-transform active:scale-[0.98]"
+          >
+            <div className="flex size-11 items-center justify-center rounded-xl bg-[#fff4e8] text-[#c47a2c]">
+              <CookingPot size={20} />
+            </div>
+            <div>
+              <p className="text-[14px] font-bold text-foreground">
+                만든 요리 등록
+              </p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                완성된 음식을 남은 음식으로 남겨 둬요
               </p>
             </div>
           </button>

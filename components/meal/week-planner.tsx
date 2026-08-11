@@ -196,7 +196,9 @@ export function WeekPlanner({
         }
       }
 
-      const fridgeOwned = fridgeItems.filter((f) => f.status === "보유");
+      const fridgeOwned = fridgeItems.filter(
+        (f) => f.status === "보유" && f.item_type !== "완성요리",
+      );
       const { data: existingList } = await supabase
         .from("shopping_list")
         .select("item_name")
@@ -362,7 +364,7 @@ export function WeekPlanner({
               <span className="text-[12px] font-bold text-foreground">
                 바로 가능
               </span>
-              <span className="font-mono text-[11px] text-muted-foreground">
+              <span className="text-[11px] tabular-nums text-muted-foreground">
                 {ready.length}개
               </span>
             </div>
@@ -391,7 +393,7 @@ export function WeekPlanner({
               <span className="text-[12px] font-bold text-foreground">
                 +1 재료만 사면 가능
               </span>
-              <span className="font-mono text-[11px] text-muted-foreground">
+              <span className="text-[11px] tabular-nums text-muted-foreground">
                 {plusOne.length}개
               </span>
             </div>

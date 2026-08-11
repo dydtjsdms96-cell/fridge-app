@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Camera, ChevronLeft, ImagePlus } from "lucide-react";
 import { createClient } from "@/lib/supabase";
-import type { StorageZone } from "@/types/database";
+import { saveFridgeItem } from "@/lib/fridge-item-upsert";
 import { ManualAddSheet } from "@/components/fridge/manual-add-sheet";
+import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
+import type { ManualAddPayload } from "@/components/fridge/manual-add-sheet";
 
 export function ReceiptAddScreen() {
   const router = useRouter();
@@ -14,6 +16,7 @@ export function ReceiptAddScreen() {
   const [fileName, setFileName] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [showManualAdd, setShowManualAdd] = useState(false);
+  const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
 
   useEffect(() => {
     return () => {
@@ -37,36 +40,19 @@ export function ReceiptAddScreen() {
     }, 900);
   }
 
-  async function handleManualAdd(payload: {
-    name: string;
-    quantity: number;
-    unit: string | null;
-    zone: StorageZone;
-    sub_zone: string | null;
-    category: string | null;
-    expires_at: string;
-  }) {
+  async function handleManualAdd(payload: ManualAddPayload) {
     const supabase = createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("로그인이 필요해요");
 
-    const { error } = await supabase.from("fridge_items").insert({
-      user_id: user.id,
-      name: payload.name,
-      quantity: payload.quantity,
-      unit: payload.unit,
-      zone: payload.zone,
-      sub_zone: payload.sub_zone,
-      category: payload.category,
-      expires_at: payload.expires_at,
-      status: "보유",
-      input_method: "수동",
-      purchased_at: new Date().toISOString().slice(0, 10),
-    });
+    await saveFridgeItem(
+      user.id,
+      { ...payload, input_method: "수동" },
+      { supabase, resolveDuplicate },
+    );
 
-    if (error) throw new Error(error.message);
     router.push("/fridge");
     router.refresh();
   }
@@ -174,6 +160,8 @@ export function ReceiptAddScreen() {
           onSubmit={handleManualAdd}
         />
       )}
+
+      {duplicateDialog}
     </div>
   );
 }

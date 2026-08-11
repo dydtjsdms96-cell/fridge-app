@@ -1,18 +1,13 @@
 import type { Metadata, Viewport } from "next";
-import { DM_Mono, Noto_Sans_KR } from "next/font/google";
+import localFont from "next/font/local";
 import { CapacitorShell } from "@/components/capacitor/capacitor-shell";
 import "./globals.css";
 
-const notoSansKr = Noto_Sans_KR({
-  variable: "--font-noto-sans-kr",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
-});
-
-const dmMono = DM_Mono({
-  variable: "--font-dm-mono",
-  subsets: ["latin"],
-  weight: ["400", "500"],
+const pretendard = localFont({
+  src: "./fonts/PretendardVariable.woff2",
+  display: "swap",
+  weight: "45 920",
+  variable: "--font-pretendard",
 });
 
 export const metadata: Metadata = {
@@ -33,9 +28,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="ko"
-      className={`${notoSansKr.variable} ${dmMono.variable} h-full antialiased`}
+      className={`${pretendard.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col font-sans">
+      <body className="flex min-h-full flex-col font-sans tabular-nums">
         <CapacitorShell>{children}</CapacitorShell>
       </body>
     </html>

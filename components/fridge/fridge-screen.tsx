@@ -1,11 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Search } from "lucide-react";
+import { Plus, RotateCcw, Search } from "lucide-react";
 import type { FridgeItem, StorageZone } from "@/types/database";
 import { defaultExpiresAt } from "@/lib/dday";
 import { createClient } from "@/lib/supabase";
+import {
+  SaveCancelledError,
+  normalizeItemName,
+  saveFridgeItem,
+  saveFridgeItems,
+} from "@/lib/fridge-item-upsert";
+import { FoodIcon } from "@/components/ui/food-icon";
 import { ItemCard } from "@/components/fridge/item-card";
 import {
   ItemDetailSheet,
@@ -13,11 +20,17 @@ import {
 } from "@/components/fridge/item-detail-sheet";
 import { AddOptionsSheet } from "@/components/fridge/add-options-sheet";
 import { ManualAddSheet } from "@/components/fridge/manual-add-sheet";
+import {
+  CookedDishAddSheet,
+  type CookedDishPayload,
+} from "@/components/fridge/cooked-dish-add-sheet";
 import { VoiceRegisterFlow } from "@/components/fridge/voice-register-flow";
+import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 
 const ZONE_FILTERS = ["전체", "냉장", "냉동", "실온"] as const;
 const CATEGORY_FILTERS = [
   "전체",
+  "완성요리",
   "유제품",
   "채소·과일",
   "육류·어류",
@@ -25,8 +38,18 @@ const CATEGORY_FILTERS = [
   "기타",
 ] as const;
 
-function matchCategory(itemCategory: string | null, filter: string) {
+function matchCategory(
+  item: Pick<FridgeItem, "category" | "item_type">,
+  filter: string,
+) {
   if (filter === "전체") return true;
+  if (filter === "완성요리") {
+    return item.item_type === "완성요리" || item.category === "완성요리";
+  }
+  if (item.item_type === "완성요리" || item.category === "완성요리") {
+    return false;
+  }
+  const itemCategory = item.category;
   if (!itemCategory) return filter === "기타";
   if (itemCategory === filter) return true;
   if (
@@ -60,18 +83,37 @@ function matchCategory(itemCategory: string | null, filter: string) {
       "두부",
       "콩",
       "유제",
+      "완성요리",
     ].some((key) => itemCategory.includes(key));
   }
   return false;
 }
 
+/** 이름+구역 기준 최신 1건만 (다시 구매 목록용) */
+function dedupeRecentArchived(items: FridgeItem[]): FridgeItem[] {
+  const seen = new Set<string>();
+  const out: FridgeItem[] = [];
+  for (const item of items) {
+    const key = `${normalizeItemName(item.name)}|${item.zone}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out.slice(0, 12);
+}
+
 type FridgeScreenProps = {
   initialItems: FridgeItem[];
+  initialRecentArchived?: FridgeItem[];
 };
 
-export function FridgeScreen({ initialItems }: FridgeScreenProps) {
+export function FridgeScreen({
+  initialItems,
+  initialRecentArchived = [],
+}: FridgeScreenProps) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
+  const [recentArchived, setRecentArchived] = useState(initialRecentArchived);
   const [search, setSearch] = useState("");
   const [zone, setZone] = useState<(typeof ZONE_FILTERS)[number]>("전체");
   const [category, setCategory] =
@@ -79,16 +121,32 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
   const [selectedItem, setSelectedItem] = useState<FridgeItem | null>(null);
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
+  const [showCookedDish, setShowCookedDish] = useState(false);
+  const [repurchaseFrom, setRepurchaseFrom] = useState<FridgeItem | null>(null);
   const [showVoice, setShowVoice] = useState(false);
+  const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
+
+  useEffect(() => {
+    setItems(initialItems);
+  }, [initialItems]);
+
+  useEffect(() => {
+    setRecentArchived(initialRecentArchived);
+  }, [initialRecentArchived]);
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
       const matchZone = zone === "전체" || item.zone === zone;
-      const matchCat = matchCategory(item.category, category);
+      const matchCat = matchCategory(item, category);
       const matchSearch = !search.trim() || item.name.includes(search.trim());
       return matchZone && matchCat && matchSearch;
     });
   }, [items, zone, category, search]);
+
+  const recentForBuyAgain = useMemo(
+    () => dedupeRecentArchived(recentArchived),
+    [recentArchived],
+  );
 
   async function handleSavePartial(newQuantity: number) {
     if (!selectedItem) return;
@@ -126,7 +184,13 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
       .eq("id", selectedItem.id);
 
     if (!error) {
+      const archived: FridgeItem = {
+        ...selectedItem,
+        status,
+        updated_at: new Date().toISOString(),
+      };
       setItems((prev) => prev.filter((item) => item.id !== selectedItem.id));
+      setRecentArchived((prev) => [archived, ...prev]);
       setSelectedItem(null);
       router.refresh();
     }
@@ -139,7 +203,8 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
     zone: StorageZone;
     sub_zone: string | null;
     category: string | null;
-    expires_at: string;
+    expires_at: string | null;
+    has_no_expiry: boolean;
   }) {
     const supabase = createClient();
     const {
@@ -147,29 +212,48 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("로그인이 필요해요");
 
-    const { data, error } = await supabase
-      .from("fridge_items")
-      .insert({
-        user_id: user.id,
-        name: payload.name,
-        quantity: payload.quantity,
-        unit: payload.unit,
-        zone: payload.zone,
-        sub_zone: payload.sub_zone,
-        category: payload.category,
-        expires_at: payload.expires_at,
-        status: "보유",
-        input_method: "수동",
-        purchased_at: new Date().toISOString().slice(0, 10),
-      })
-      .select("*")
-      .single();
+    const result = await saveFridgeItem(
+      user.id,
+      { ...payload, input_method: "수동" },
+      { supabase, ownedItems: items, resolveDuplicate },
+    );
 
-    if (error) throw new Error(error.message);
-    if (data) {
-      setItems((prev) => [data as FridgeItem, ...prev]);
-      router.refresh();
-    }
+    setItems((prev) => {
+      if (result.status === "merged") {
+        return prev.map((item) =>
+          item.id === result.item.id ? result.item : item,
+        );
+      }
+      return [result.item, ...prev];
+    });
+    router.refresh();
+  }
+
+  async function handleCookedDishAdd(payload: CookedDishPayload) {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("로그인이 필요해요");
+
+    const result = await saveFridgeItem(
+      user.id,
+      {
+        ...payload,
+        sub_zone: null,
+        category: "완성요리",
+        item_type: "완성요리",
+        input_method: "수동",
+      },
+      {
+        supabase,
+        ownedItems: items,
+        resolveDuplicate: async () => "separate",
+      },
+    );
+
+    setItems((prev) => [result.item, ...prev]);
+    router.refresh();
   }
 
   async function handleVoiceRegister(
@@ -179,6 +263,8 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
       unit: string;
       zone: StorageZone;
       category: string;
+      expires_at: string | null;
+      has_no_expiry: boolean;
     }[],
   ) {
     const supabase = createClient();
@@ -187,36 +273,54 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const rows = payloads.map((payload) => ({
-      user_id: user.id,
-      name: payload.name,
-      quantity: payload.quantity,
-      unit: payload.unit,
-      zone: payload.zone,
-      category: payload.category,
-      expires_at: defaultExpiresAt(payload.name, payload.category),
-      status: "보유" as const,
-      input_method: "음성" as const,
-      purchased_at: new Date().toISOString().slice(0, 10),
-    }));
+    try {
+      const results = await saveFridgeItems(
+        user.id,
+        payloads.map((payload) => ({
+          ...payload,
+          sub_zone: null,
+          expires_at: payload.has_no_expiry
+            ? null
+            : (payload.expires_at ??
+              defaultExpiresAt(payload.name, payload.category)),
+          input_method: "음성" as const,
+        })),
+        { supabase, ownedItems: items, resolveDuplicate },
+      );
 
-    const { data, error } = await supabase
-      .from("fridge_items")
-      .insert(rows)
-      .select("*");
-
-    if (!error && data) {
-      setItems((prev) => [...(data as FridgeItem[]), ...prev]);
+      setItems((prev) => {
+        let next = [...prev];
+        for (const result of results) {
+          if (result.status === "merged") {
+            next = next.map((item) =>
+              item.id === result.item.id ? result.item : item,
+            );
+          } else {
+            next = [result.item, ...next];
+          }
+        }
+        return next;
+      });
       router.refresh();
+    } catch (err) {
+      if (err instanceof SaveCancelledError) throw err;
+      console.error("[fridge] voice register:", err);
     }
   }
 
-  async function handleSaveExpires(expiresAt: string) {
+  async function handleSaveExpires(payload: {
+    expires_at: string | null;
+    has_no_expiry: boolean;
+  }) {
     if (!selectedItem) return;
     const supabase = createClient();
+    const next = {
+      expires_at: payload.has_no_expiry ? null : payload.expires_at,
+      has_no_expiry: payload.has_no_expiry,
+    };
     const { error } = await supabase
       .from("fridge_items")
-      .update({ expires_at: expiresAt })
+      .update(next)
       .eq("id", selectedItem.id);
     if (error) {
       console.error("[fridge] expires_at error:", error.message);
@@ -224,20 +328,20 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
     }
     setItems((prev) =>
       prev.map((item) =>
-        item.id === selectedItem.id
-          ? { ...item, expires_at: expiresAt }
-          : item,
+        item.id === selectedItem.id ? { ...item, ...next } : item,
       ),
     );
-    setSelectedItem((prev) =>
-      prev ? { ...prev, expires_at: expiresAt } : prev,
-    );
+    setSelectedItem((prev) => (prev ? { ...prev, ...next } : prev));
     router.refresh();
+  }
+
+  function openRepurchase(item: FridgeItem) {
+    setRepurchaseFrom(item);
   }
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto pb-8 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto pb-24 scrollbar-hide">
         <div className="px-4 pt-4 pb-3 sm:px-6 lg:px-8">
           <h1 className="mb-3 text-[22px] font-bold leading-[27.5px] text-foreground">
             냉장고
@@ -290,7 +394,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
         <div className="mb-3 px-4 sm:px-6 lg:px-8">
           <p className="text-[11px] text-muted-foreground">
             총{" "}
-            <span className="font-mono font-medium text-foreground">
+            <span className="min-w-[1.5ch] font-medium text-foreground tabular-nums">
               {filtered.length}
             </span>
             개
@@ -318,6 +422,72 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
             </div>
           )}
         </div>
+
+        {recentForBuyAgain.length > 0 && (
+          <section className="mt-8 px-4 pb-2 sm:px-6 lg:px-8">
+            <div className="mb-3">
+              <h2 className="text-[13px] font-bold text-foreground">
+                최근 소진·폐기
+              </h2>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                다시 구매하면 이름·구역을 그대로 불러와요
+              </p>
+            </div>
+            <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_2px_8px_rgba(0,0,0,0.04)]">
+              {recentForBuyAgain.map((item, idx) => (
+                <div
+                  key={item.id}
+                  className={`flex items-center gap-3 px-3.5 py-3 ${
+                    idx < recentForBuyAgain.length - 1
+                      ? "border-b border-border"
+                      : ""
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => setSelectedItem(item)}
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  >
+                    <FoodIcon
+                      name={item.name}
+                      category={item.category}
+                      itemType={item.item_type}
+                      size={28}
+                      className="shrink-0 opacity-80"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold text-foreground">
+                        {item.name}
+                      </p>
+                      <p className="mt-0.5 text-[11px] text-muted-foreground">
+                        {item.zone}
+                        {item.unit ? ` · ${item.unit}` : ""}
+                        {" · "}
+                        <span
+                          className={
+                            item.status === "폐기"
+                              ? "text-status-urgent"
+                              : "text-muted-foreground"
+                          }
+                        >
+                          {item.status}
+                        </span>
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openRepurchase(item)}
+                    className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-secondary px-3 py-1.5 text-[11px] font-bold text-primary transition-transform active:scale-95"
+                  >
+                    <RotateCcw size={12} strokeWidth={2.5} />
+                    다시 구매
+                  </button>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
       </div>
 
       <button
@@ -337,6 +507,11 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
           onSavePartial={handleSavePartial}
           onSaveExpires={handleSaveExpires}
           onRemove={handleRemove}
+          onRepurchase={() => {
+            const item = selectedItem;
+            setSelectedItem(null);
+            openRepurchase(item);
+          }}
         />
       )}
 
@@ -355,6 +530,14 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
             setShowAddOptions(false);
             router.push("/fridge/add/receipt");
           }}
+          onSelectBarcode={() => {
+            setShowAddOptions(false);
+            router.push("/fridge/add/barcode");
+          }}
+          onSelectCookedDish={() => {
+            setShowAddOptions(false);
+            setShowCookedDish(true);
+          }}
         />
       )}
 
@@ -365,12 +548,36 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
         />
       )}
 
+      {showCookedDish && (
+        <CookedDishAddSheet
+          onClose={() => setShowCookedDish(false)}
+          onSubmit={handleCookedDishAdd}
+        />
+      )}
+
+      {repurchaseFrom && (
+        <ManualAddSheet
+          key={`repurchase-${repurchaseFrom.id}`}
+          title="다시 구매"
+          initialName={repurchaseFrom.name}
+          initialCategory={repurchaseFrom.category}
+          initialZone={repurchaseFrom.zone}
+          initialSubZone={repurchaseFrom.sub_zone}
+          initialUnit={repurchaseFrom.unit}
+          initialHasNoExpiry={Boolean(repurchaseFrom.has_no_expiry)}
+          onClose={() => setRepurchaseFrom(null)}
+          onSubmit={handleManualAdd}
+        />
+      )}
+
       {showVoice && (
         <VoiceRegisterFlow
           onClose={() => setShowVoice(false)}
           onRegister={handleVoiceRegister}
         />
       )}
+
+      {duplicateDialog}
     </div>
   );
 }

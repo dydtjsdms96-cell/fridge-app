@@ -71,10 +71,12 @@ export default async function MealPage() {
   }
 
   const fridgeItems = (fridgeRes.data ?? []) as FridgeItem[];
-  const fridgeStock = fridgeItems.map((i) => ({
-    name: i.name,
-    quantity: Number(i.quantity) || 0,
-  }));
+  const fridgeStock = fridgeItems
+    .filter((i) => i.item_type !== "완성요리")
+    .map((i) => ({
+      name: i.name,
+      quantity: Number(i.quantity) || 0,
+    }));
   const recipes = (recipesRes.data ?? []) as RecipeWithIngredients[];
   const matches = buildRecipeMatchesFromJoined(recipes, fridgeStock);
   const initialPlans = (plansRes.data ?? []) as MealPlanEntry[];

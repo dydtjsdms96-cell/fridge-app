@@ -15,12 +15,15 @@ type SwipeDeleteRowProps = {
   children: ReactNode;
   onDelete: () => void;
   disabled?: boolean;
+  /** Sliding content background (default bg-card) */
+  contentClassName?: string;
 };
 
 export function SwipeDeleteRow({
   children,
   onDelete,
   disabled,
+  contentClassName = "bg-card",
 }: SwipeDeleteRowProps) {
   const [offset, setOffset] = useState(0);
   const startX = useRef(0);
@@ -82,7 +85,7 @@ export function SwipeDeleteRow({
         <Trash2 size={18} />
       </button>
       <div
-        className="relative touch-pan-y bg-card transition-transform duration-150 ease-out"
+        className={`relative touch-pan-y transition-transform duration-150 ease-out ${contentClassName}`}
         style={{ transform: `translateX(${offset}px)` }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}

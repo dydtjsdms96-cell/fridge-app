@@ -40,8 +40,9 @@ create table fridge_items (
   unit text,                           -- g, ml, 개, 팩 등
   purchased_at date,
   expires_at date,                     -- ingredient_ref 기반 자동 계산, 수정 가능
+  has_no_expiry boolean not null default false, -- true면 무기한, expires_at null
   status text not null default '보유' check (status in ('보유','소진','폐기')),
-  input_method text check (input_method in ('수동','음성','장보기전환')),
+  input_method text check (input_method in ('수동','음성','장보기전환','바코드')),
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
@@ -150,6 +151,19 @@ create table storage_zones (
 
 create index idx_storage_zones_user on storage_zones(user_id, base_zone);
 
+-- ------------------------------------------------------------
+-- 9. 바코드 → 재료 매핑 (사용자별 학습)
+-- ------------------------------------------------------------
+create table if not exists barcode_lookup (
+  barcode text not null,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text not null,
+  category text,
+  default_zone text check (default_zone is null or default_zone in ('냉장','냉동','실온','김치냉장고')),
+  created_at timestamptz default now(),
+  primary key (user_id, barcode)
+);
+
 -- ============================================================
 -- 트리거: fridge_items 상태 변경 자동화
 -- ============================================================
@@ -160,6 +174,12 @@ returns trigger as $$
 declare
   ref ingredient_ref%rowtype;
 begin
+  if coalesce(new.has_no_expiry, false) then
+    new.expires_at := null;
+    new.updated_at := now();
+    return new;
+  end if;
+
   if new.expires_at is null then
     select * into ref from ingredient_ref
       where name = new.name or new.name = any(aliases)

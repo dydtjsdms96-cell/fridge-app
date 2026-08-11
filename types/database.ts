@@ -2,7 +2,9 @@ export type StorageZone = "냉장" | "냉동" | "실온" | "김치냉장고";
 
 export type FridgeItemStatus = "보유" | "소진" | "폐기";
 
-export type FridgeInputMethod = "수동" | "음성" | "장보기전환";
+export type FridgeItemType = "원재료" | "완성요리";
+
+export type FridgeInputMethod = "수동" | "음성" | "장보기전환" | "바코드";
 
 export type RecipeDifficulty = "쉬움" | "보통" | "어려움";
 
@@ -48,6 +50,16 @@ export interface StorageZoneRow {
   created_at: string | null;
 }
 
+/** User-learned barcode → ingredient mapping (per user). */
+export interface BarcodeLookup {
+  barcode: string;
+  user_id: string;
+  name: string;
+  category: string | null;
+  default_zone: StorageZone | null;
+  created_at: string | null;
+}
+
 export interface FridgeItem {
   id: string;
   user_id: string;
@@ -59,7 +71,11 @@ export interface FridgeItem {
   unit: string | null;
   purchased_at: string | null;
   expires_at: string | null;
+  /** true면 유통기한 없음(무기한). expires_at은 null. */
+  has_no_expiry: boolean;
   status: FridgeItemStatus;
+  /** 원재료(기본) | 완성요리(만든 음식) */
+  item_type: FridgeItemType;
   input_method: FridgeInputMethod | null;
   created_at: string | null;
   updated_at: string | null;

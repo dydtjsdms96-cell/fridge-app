@@ -3,32 +3,68 @@
 import { useEffect, useState } from "react";
 import { Mic, X } from "lucide-react";
 import type { StorageZone } from "@/types/database";
+import {
+  defaultExpiresAt,
+  isNoExpiryCategory,
+  ymdInAppTz,
+} from "@/lib/dday";
+import { SaveCancelledError } from "@/lib/fridge-item-upsert";
 
 const DEMO_TAGS = ["계란", "두부", "대파", "닭고기"];
 
 const WAVE_BARS = [18, 32, 48, 28, 56, 36, 44, 24, 52, 30, 40, 22];
 
+export type VoiceRegisterItem = {
+  name: string;
+  quantity: number;
+  unit: string;
+  zone: StorageZone;
+  category: string;
+  expires_at: string | null;
+  has_no_expiry: boolean;
+};
+
+type DraftItem = {
+  name: string;
+  quantity: number;
+  unit: string;
+  zone: StorageZone;
+  category: string;
+  expires_at: string;
+  has_no_expiry: boolean;
+};
+
 type VoiceRegisterFlowProps = {
   onClose: () => void;
-  onRegister: (
-    items: {
-      name: string;
-      quantity: number;
-      unit: string;
-      zone: StorageZone;
-      category: string;
-    }[],
-  ) => Promise<void>;
+  onRegister: (items: VoiceRegisterItem[]) => Promise<void>;
 };
+
+function draftFromName(name: string, today: string): DraftItem {
+  const category = "기타";
+  const noExpiry = isNoExpiryCategory(category);
+  return {
+    name,
+    quantity: 1,
+    unit: "개",
+    zone: "냉장",
+    category,
+    has_no_expiry: noExpiry,
+    expires_at: defaultExpiresAt(name, category, today),
+  };
+}
 
 export function VoiceRegisterFlow({
   onClose,
   onRegister,
 }: VoiceRegisterFlowProps) {
+  const today = ymdInAppTz();
+  const [step, setStep] = useState<"listen" | "review">("listen");
   const [revealedTags, setRevealedTags] = useState<string[]>([]);
+  const [drafts, setDrafts] = useState<DraftItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    if (step !== "listen") return;
     setRevealedTags([]);
     let i = 0;
     const timer = setInterval(() => {
@@ -41,25 +77,152 @@ export function VoiceRegisterFlow({
       }
     }, 900);
     return () => clearInterval(timer);
-  }, []);
+  }, [step]);
 
-  async function handleDone() {
+  function goToReview() {
     if (revealedTags.length === 0) return;
+    setDrafts(revealedTags.map((name) => draftFromName(name, today)));
+    setStep("review");
+  }
+
+  function updateDraft(index: number, patch: Partial<DraftItem>) {
+    setDrafts((prev) =>
+      prev.map((item, i) => {
+        if (i !== index) return item;
+        const next = { ...item, ...patch };
+        if (patch.category !== undefined) {
+          if (isNoExpiryCategory(patch.category)) {
+            next.has_no_expiry = true;
+          }
+          if (!next.has_no_expiry) {
+            next.expires_at = defaultExpiresAt(
+              next.name,
+              next.category,
+              today,
+            );
+          }
+        }
+        return next;
+      }),
+    );
+  }
+
+  async function handleRegister() {
+    if (drafts.length === 0) return;
     setLoading(true);
     try {
       await onRegister(
-        revealedTags.map((name) => ({
-          name,
-          quantity: 1,
-          unit: "개",
-          zone: "냉장" as const,
-          category: "기타",
+        drafts.map((d) => ({
+          name: d.name,
+          quantity: d.quantity,
+          unit: d.unit,
+          zone: d.zone,
+          category: d.category,
+          has_no_expiry: d.has_no_expiry,
+          expires_at: d.has_no_expiry ? null : d.expires_at,
         })),
       );
       onClose();
+    } catch (err) {
+      if (err instanceof SaveCancelledError) return;
+      throw err;
     } finally {
       setLoading(false);
     }
+  }
+
+  if (step === "review") {
+    return (
+      <div
+        className="absolute inset-0 z-50 flex flex-col bg-background"
+      >
+        <div className="flex shrink-0 items-center justify-between px-5 pt-4 pb-3">
+          <div>
+            <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+              음성 등록
+            </p>
+            <h2 className="text-[18px] font-bold text-foreground">
+              인식 결과 확인
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex size-9 items-center justify-center rounded-full border border-border bg-card"
+            aria-label="닫기"
+          >
+            <X size={16} className="text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 pb-4 scrollbar-hide">
+          {drafts.map((item, index) => (
+            <div
+              key={`${item.name}-${index}`}
+              className="rounded-2xl border border-border bg-card p-3.5 shadow-[0_1px_6px_rgba(0,0,0,0.04)]"
+            >
+              <div className="mb-2.5 flex items-center justify-between gap-2">
+                <p className="text-[15px] font-bold text-foreground">{item.name}</p>
+                <input
+                  value={item.category}
+                  onChange={(e) =>
+                    updateDraft(index, { category: e.target.value })
+                  }
+                  placeholder="카테고리"
+                  className="w-28 rounded-lg border border-border bg-background px-2 py-1.5 text-[11px] outline-none focus:border-primary"
+                />
+              </div>
+              <label className="mb-2 flex cursor-pointer items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={item.has_no_expiry}
+                  onChange={(e) =>
+                    updateDraft(index, {
+                      has_no_expiry: e.target.checked,
+                      expires_at: e.target.checked
+                        ? item.expires_at
+                        : defaultExpiresAt(item.name, item.category, today),
+                    })
+                  }
+                  className="size-4 accent-primary"
+                />
+                <span className="text-[12px] font-medium text-foreground">
+                  유통기한 없음
+                </span>
+              </label>
+              <input
+                type="date"
+                value={item.expires_at}
+                min={today}
+                disabled={item.has_no_expiry}
+                onChange={(e) =>
+                  updateDraft(index, { expires_at: e.target.value })
+                }
+                className="w-full rounded-xl border border-border bg-background px-3 py-2.5 text-[13px] outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
+              />
+            </div>
+          ))}
+        </div>
+
+        <div className="grid shrink-0 grid-cols-2 gap-2.5 px-5 pt-2 pb-8">
+          <button
+            type="button"
+            onClick={() => setStep("listen")}
+            className="rounded-xl bg-muted py-3.5 text-[13px] font-semibold"
+          >
+            다시 인식
+          </button>
+          <button
+            type="button"
+            disabled={loading}
+            onClick={handleRegister}
+            className="rounded-xl bg-primary py-3.5 text-[13px] font-bold text-primary-foreground disabled:opacity-50"
+          >
+            {loading ? "등록 중..." : `${drafts.length}개 등록`}
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -119,7 +282,9 @@ export function VoiceRegisterFlow({
         <p className="mb-3 text-[12px] text-white/40">인식된 재료</p>
         <div className="mb-5 flex min-h-[36px] flex-wrap gap-2">
           {revealedTags.length === 0 ? (
-            <p className="text-[13px] text-white/25 italic">아직 인식된 재료가 없어요</p>
+            <p className="text-[13px] text-white/25 italic">
+              아직 인식된 재료가 없어요
+            </p>
           ) : (
             revealedTags.map((tag) => (
               <span
@@ -134,13 +299,11 @@ export function VoiceRegisterFlow({
         </div>
         <button
           type="button"
-          disabled={revealedTags.length === 0 || loading}
-          onClick={handleDone}
+          disabled={revealedTags.length === 0}
+          onClick={goToReview}
           className="w-full rounded-2xl bg-primary py-3.5 text-[14px] font-bold text-primary-foreground disabled:opacity-40"
         >
-          {loading
-            ? "등록 중..."
-            : `완료 (${revealedTags.length}개 인식됨)`}
+          {`확인하기 (${revealedTags.length}개 인식됨)`}
         </button>
       </div>
     </div>

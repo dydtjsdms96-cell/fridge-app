@@ -21,8 +21,10 @@ import type { FridgeItem, StorageZone, StorageZoneRow } from "@/types/database";
 import {
   defaultExpiresAt,
   formatDDay,
+  formatDDayShort,
   getDDay,
   getExpiryStatus,
+  isExpiryTracked,
   type ExpiryStatus,
 } from "@/lib/dday";
 import { createClient } from "@/lib/supabase";
@@ -31,15 +33,26 @@ import {
   emptyTrailingSlots,
   type HomeZonePanel,
 } from "@/lib/home-zones";
+import {
+  SaveCancelledError,
+  isCookedDish,
+  saveFridgeItem,
+  saveFridgeItems,
+} from "@/lib/fridge-item-upsert";
 import { FoodIcon } from "@/components/ui/food-icon";
 import { EXPIRY_STYLES } from "@/components/home/expiry-styles";
 import { AddOptionsSheet } from "@/components/fridge/add-options-sheet";
 import { ManualAddSheet } from "@/components/fridge/manual-add-sheet";
+import {
+  CookedDishAddSheet,
+  type CookedDishPayload,
+} from "@/components/fridge/cooked-dish-add-sheet";
 import { VoiceRegisterFlow } from "@/components/fridge/voice-register-flow";
 import {
   ItemDetailSheet,
   type ConfirmMode,
 } from "@/components/fridge/item-detail-sheet";
+import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 
 type ItemWithMeta = FridgeItem & {
   dDay: number | null;
@@ -48,15 +61,14 @@ type ItemWithMeta = FridgeItem & {
 
 function enrich(items: FridgeItem[]): ItemWithMeta[] {
   return items.map((item) => {
-    const dDay = getDDay(item.expires_at);
-    return { ...item, dDay, statusKey: getExpiryStatus(dDay) };
+    const hasNoExpiry = Boolean(item.has_no_expiry);
+    const dDay = hasNoExpiry ? null : getDDay(item.expires_at);
+    return {
+      ...item,
+      dDay,
+      statusKey: getExpiryStatus(dDay, hasNoExpiry),
+    };
   });
-}
-
-function shortDDay(dDay: number | null): string {
-  if (dDay === null) return "—";
-  if (dDay < 0) return `+${Math.abs(dDay)}`;
-  return `D-${dDay}`;
 }
 
 type AddTarget = { zone: StorageZone; subZone: string | null };
@@ -72,8 +84,10 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
+  const [showCookedDish, setShowCookedDish] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FridgeItem | null>(null);
+  const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
 
   useEffect(() => {
     setItems(initialItems);
@@ -90,12 +104,14 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
   );
 
   const total = enriched.length;
-  const expiredCount = enriched.filter(
+  const tracked = enriched.filter((i) => isExpiryTracked(i));
+  const expiredCount = tracked.filter(
     (i) => i.dDay !== null && i.dDay < 0,
   ).length;
-  const imminentCount = enriched.filter(
+  const imminentCount = tracked.filter(
     (i) => i.dDay !== null && i.dDay >= 0 && i.dDay <= 7,
   ).length;
+  // 여유: 추적 대상 중 임박·만료가 아닌 항목 (+ 무기한은 여유에 포함)
   const freshCount = total - expiredCount - imminentCount;
 
   function openAdd(zone: StorageZone, subZone: string | null) {
@@ -109,7 +125,8 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
     zone: StorageZone;
     sub_zone: string | null;
     category: string | null;
-    expires_at: string;
+    expires_at: string | null;
+    has_no_expiry: boolean;
   }) {
     const supabase = createClient();
     const {
@@ -117,29 +134,55 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
     } = await supabase.auth.getUser();
     if (!user) throw new Error("로그인이 필요해요");
 
-    const { data, error } = await supabase
-      .from("fridge_items")
-      .insert({
-        user_id: user.id,
-        name: payload.name,
-        quantity: payload.quantity,
-        unit: payload.unit,
-        zone: payload.zone,
-        sub_zone: payload.sub_zone,
-        category: payload.category,
-        expires_at: payload.expires_at,
-        status: "보유",
+    const result = await saveFridgeItem(
+      user.id,
+      {
+        ...payload,
         input_method: "수동",
-        purchased_at: new Date().toISOString().slice(0, 10),
-      })
-      .select("*")
-      .single();
+      },
+      {
+        supabase,
+        ownedItems: items,
+        resolveDuplicate,
+      },
+    );
 
-    if (error) throw new Error(error.message);
-    if (data) {
-      setItems((prev) => [data as FridgeItem, ...prev]);
-      router.refresh();
-    }
+    setItems((prev) => {
+      if (result.status === "merged") {
+        return prev.map((item) =>
+          item.id === result.item.id ? result.item : item,
+        );
+      }
+      return [result.item, ...prev];
+    });
+    router.refresh();
+  }
+
+  async function handleCookedDishAdd(payload: CookedDishPayload) {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("로그인이 필요해요");
+
+    const result = await saveFridgeItem(
+      user.id,
+      {
+        ...payload,
+        sub_zone: null,
+        category: "완성요리",
+        item_type: "완성요리",
+        input_method: "수동",
+      },
+      {
+        supabase,
+        ownedItems: items,
+        resolveDuplicate: async () => "separate",
+      },
+    );
+
+    setItems((prev) => [result.item, ...prev]);
+    router.refresh();
   }
 
   async function handleVoiceRegister(
@@ -149,6 +192,8 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
       unit: string;
       zone: StorageZone;
       category: string;
+      expires_at: string | null;
+      has_no_expiry: boolean;
     }[],
   ) {
     const supabase = createClient();
@@ -157,27 +202,42 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
     } = await supabase.auth.getUser();
     if (!user) return;
 
-    const rows = payloads.map((payload) => ({
-      user_id: user.id,
-      name: payload.name,
-      quantity: payload.quantity,
-      unit: payload.unit,
-      zone: payload.zone,
-      category: payload.category,
-      expires_at: defaultExpiresAt(payload.name, payload.category),
-      status: "보유" as const,
-      input_method: "음성" as const,
-      purchased_at: new Date().toISOString().slice(0, 10),
-    }));
+    try {
+      const results = await saveFridgeItems(
+        user.id,
+        payloads.map((payload) => ({
+          ...payload,
+          sub_zone: null,
+          expires_at: payload.has_no_expiry
+            ? null
+            : (payload.expires_at ??
+              defaultExpiresAt(payload.name, payload.category)),
+          input_method: "음성" as const,
+        })),
+        {
+          supabase,
+          ownedItems: items,
+          resolveDuplicate,
+        },
+      );
 
-    const { data, error } = await supabase
-      .from("fridge_items")
-      .insert(rows)
-      .select("*");
-
-    if (!error && data) {
-      setItems((prev) => [...(data as FridgeItem[]), ...prev]);
+      setItems((prev) => {
+        let next = [...prev];
+        for (const result of results) {
+          if (result.status === "merged") {
+            next = next.map((item) =>
+              item.id === result.item.id ? result.item : item,
+            );
+          } else {
+            next = [result.item, ...next];
+          }
+        }
+        return next;
+      });
       router.refresh();
+    } catch (err) {
+      if (err instanceof SaveCancelledError) throw err;
+      console.error("[home] voice register:", err);
     }
   }
 
@@ -220,24 +280,27 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
     }
   }
 
-  async function handleSaveExpires(expiresAt: string) {
+  async function handleSaveExpires(payload: {
+    expires_at: string | null;
+    has_no_expiry: boolean;
+  }) {
     if (!selectedItem) return;
     const supabase = createClient();
+    const next = {
+      expires_at: payload.has_no_expiry ? null : payload.expires_at,
+      has_no_expiry: payload.has_no_expiry,
+    };
     const { error } = await supabase
       .from("fridge_items")
-      .update({ expires_at: expiresAt })
+      .update(next)
       .eq("id", selectedItem.id);
     if (error) return;
     setItems((prev) =>
       prev.map((item) =>
-        item.id === selectedItem.id
-          ? { ...item, expires_at: expiresAt }
-          : item,
+        item.id === selectedItem.id ? { ...item, ...next } : item,
       ),
     );
-    setSelectedItem((prev) =>
-      prev ? { ...prev, expires_at: expiresAt } : prev,
-    );
+    setSelectedItem((prev) => (prev ? { ...prev, ...next } : prev));
     router.refresh();
   }
 
@@ -280,7 +343,7 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
                 <div key={stat.label} className="contents">
                   {idx > 0 && <div className="mx-auto h-11 w-px bg-white/20" />}
                   <div className="flex flex-col items-center gap-1.5">
-                    <p className="font-sans text-[26px] font-bold leading-9 text-white [font-feature-settings:'zero'_0] [font-variant-numeric:normal]">
+                    <p className="min-w-[2ch] text-center text-[26px] font-bold leading-9 text-white tabular-nums">
                       {stat.value}
                     </p>
                     <p className="text-[11px] font-medium text-white/70">
@@ -363,6 +426,14 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
             setShowAddOptions(false);
             router.push("/fridge/add/receipt");
           }}
+          onSelectBarcode={() => {
+            setShowAddOptions(false);
+            router.push("/fridge/add/barcode");
+          }}
+          onSelectCookedDish={() => {
+            setShowAddOptions(false);
+            setShowCookedDish(true);
+          }}
         />
       )}
 
@@ -378,6 +449,13 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
         />
       )}
 
+      {showCookedDish && (
+        <CookedDishAddSheet
+          onClose={() => setShowCookedDish(false)}
+          onSubmit={handleCookedDishAdd}
+        />
+      )}
+
       {showVoice && (
         <VoiceRegisterFlow
           onClose={() => setShowVoice(false)}
@@ -387,6 +465,7 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
 
       {selectedItem && (
         <ItemDetailSheet
+          key={selectedItem.id}
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
           onSavePartial={handleSavePartial}
@@ -394,6 +473,8 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
           onSaveExpires={handleSaveExpires}
         />
       )}
+
+      {duplicateDialog}
     </div>
   );
 }
@@ -528,6 +609,7 @@ function ItemSlot({
 }) {
   const s = EXPIRY_STYLES[meta?.statusKey ?? "unset"];
   const isFreezer = variant === "freezer";
+  const cooked = isCookedDish(item);
 
   return (
     <button
@@ -539,7 +621,12 @@ function ItemSlot({
           : "border-[#e8e5de] bg-[#f8f6f2]"
       }`}
     >
-      <FoodIcon name={item.name} category={item.category} size={28} />
+      <FoodIcon
+        name={item.name}
+        category={item.category}
+        itemType={item.item_type}
+        size={28}
+      />
       <span
         className={`max-w-full truncate text-[11px] font-medium leading-tight ${
           isFreezer ? "text-[#3a6a8a]" : "text-foreground/70"
@@ -547,12 +634,17 @@ function ItemSlot({
       >
         {item.name}
       </span>
+      {cooked && (
+        <span className="absolute bottom-1 left-1 rounded-md bg-[#fff4e8] px-1 py-px text-[8px] font-bold leading-3 text-[#c47a2c]">
+          요리
+        </span>
+      )}
       {meta && (
         <span
-          className={`absolute top-1 right-1 rounded-md px-1 py-px text-[9px] font-bold leading-3 ${s.badge}`}
-          title={formatDDay(meta.dDay)}
+          className={`absolute top-1 right-1 min-w-[2.25rem] rounded-md px-1 py-px text-center text-[9px] font-bold leading-3 tabular-nums ${s.badge}`}
+          title={formatDDay(meta.dDay, Boolean(meta.has_no_expiry))}
         >
-          {shortDDay(meta.dDay)}
+          {formatDDayShort(meta.dDay, Boolean(meta.has_no_expiry))}
         </span>
       )}
     </button>

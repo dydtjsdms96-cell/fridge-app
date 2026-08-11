@@ -38,4 +38,12 @@ export const EXPIRY_STYLES: Record<
     dot: "var(--muted-foreground)",
     badge: "bg-muted text-muted-foreground",
   },
+  /** 유통기한 없음(무기한) — 미설정과 구분되는 중립 회색 */
+  none: {
+    bg: "bg-[#ececea]",
+    text: "text-[#6b6963]",
+    border: "border-[#d8d6d0]",
+    dot: "#8a8780",
+    badge: "bg-[#ececea] text-[#6b6963]",
+  },
 };

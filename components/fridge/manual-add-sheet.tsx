@@ -2,23 +2,39 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import type { StorageZone } from "@/types/database";
-import { defaultExpiresAt, ymdInAppTz } from "@/lib/dday";
+import {
+  defaultExpiresAt,
+  isNoExpiryCategory,
+  ymdInAppTz,
+} from "@/lib/dday";
+import { SaveCancelledError } from "@/lib/fridge-item-upsert";
 
 const ZONES: StorageZone[] = ["냉장", "냉동", "실온", "김치냉장고"];
+
+export type ManualAddPayload = {
+  name: string;
+  quantity: number;
+  unit: string | null;
+  zone: StorageZone;
+  sub_zone: string | null;
+  category: string | null;
+  expires_at: string | null;
+  has_no_expiry: boolean;
+  /** Set when registering from a barcode scan */
+  barcode?: string | null;
+};
 
 type ManualAddSheetProps = {
   onClose: () => void;
   initialZone?: StorageZone;
   initialSubZone?: string | null;
-  onSubmit: (payload: {
-    name: string;
-    quantity: number;
-    unit: string | null;
-    zone: StorageZone;
-    sub_zone: string | null;
-    category: string | null;
-    expires_at: string;
-  }) => Promise<void>;
+  initialName?: string;
+  initialCategory?: string | null;
+  initialUnit?: string | null;
+  initialHasNoExpiry?: boolean;
+  barcode?: string | null;
+  title?: string;
+  onSubmit: (payload: ManualAddPayload) => Promise<void>;
 };
 
 export function ManualAddSheet({
@@ -26,22 +42,36 @@ export function ManualAddSheet({
   onSubmit,
   initialZone = "냉장",
   initialSubZone = null,
+  initialName = "",
+  initialCategory = null,
+  initialUnit = "개",
+  initialHasNoExpiry,
+  barcode = null,
+  title = "수동 등록",
 }: ManualAddSheetProps) {
   const today = useMemo(() => ymdInAppTz(), []);
-  const [name, setName] = useState("");
+  const [name, setName] = useState(initialName);
   const [quantity, setQuantity] = useState("1");
-  const [unit, setUnit] = useState("개");
+  const [unit, setUnit] = useState(initialUnit?.trim() || "개");
   const [zone, setZone] = useState<StorageZone>(initialZone);
   const [subZone] = useState<string | null>(initialSubZone);
-  const [category, setCategory] = useState("");
+  const [category, setCategory] = useState(initialCategory ?? "");
+  const [hasNoExpiry, setHasNoExpiry] = useState(
+    () =>
+      initialHasNoExpiry ?? isNoExpiryCategory(initialCategory),
+  );
   const [expiresAt, setExpiresAt] = useState(() =>
-    defaultExpiresAt("", null, today),
+    defaultExpiresAt(initialName, initialCategory, today),
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function refreshDefaultExpiry(nextName: string, nextCategory: string) {
-    setExpiresAt(defaultExpiresAt(nextName, nextCategory || null, today));
+  function applyCategoryDefaults(nextName: string, nextCategory: string) {
+    const noExpiry = isNoExpiryCategory(nextCategory);
+    setHasNoExpiry(noExpiry);
+    if (!noExpiry) {
+      setExpiresAt(defaultExpiresAt(nextName, nextCategory || null, today));
+    }
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -52,7 +82,7 @@ export function ManualAddSheet({
       setError("재료명을 입력해 주세요");
       return;
     }
-    if (!expiresAt) {
+    if (!hasNoExpiry && !expiresAt) {
       setError("유통기한을 입력해 주세요");
       return;
     }
@@ -65,10 +95,13 @@ export function ManualAddSheet({
         zone,
         sub_zone: subZone?.trim() || null,
         category: category.trim() || null,
-        expires_at: expiresAt,
+        expires_at: hasNoExpiry ? null : expiresAt,
+        has_no_expiry: hasNoExpiry,
+        barcode: barcode?.trim() || null,
       });
       onClose();
     } catch (err) {
+      if (err instanceof SaveCancelledError) return;
       setError(err instanceof Error ? err.message : "등록에 실패했어요");
     } finally {
       setLoading(false);
@@ -89,7 +122,15 @@ export function ManualAddSheet({
         <div className="mb-1 flex justify-center">
           <div className="h-1 w-10 rounded-full bg-muted" />
         </div>
-        <h2 className="mb-4 text-[18px] font-bold text-foreground">수동 등록</h2>
+        <h2 className="mb-1 text-[18px] font-bold text-foreground">{title}</h2>
+        {barcode && (
+          <p className="mb-4 font-mono text-[11px] text-muted-foreground">
+            바코드 {barcode}
+          </p>
+        )}
+        {!barcode && <div className="mb-3" />}
+
+        <input type="hidden" name="barcode" value={barcode ?? ""} readOnly />
 
         <div className="space-y-3">
           <label className="block">
@@ -102,7 +143,9 @@ export function ManualAddSheet({
               onChange={(e) => {
                 const v = e.target.value;
                 setName(v);
-                refreshDefaultExpiry(v, category);
+                if (!hasNoExpiry) {
+                  setExpiresAt(defaultExpiresAt(v, category || null, today));
+                }
               }}
               placeholder="예: 계란"
               className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-[14px] outline-none focus:border-primary"
@@ -174,29 +217,54 @@ export function ManualAddSheet({
               onChange={(e) => {
                 const v = e.target.value;
                 setCategory(v);
-                refreshDefaultExpiry(name, v);
+                applyCategoryDefaults(name, v);
               }}
-              placeholder="예: 채소"
+              placeholder="예: 채소, 양념"
               className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-[14px] outline-none focus:border-primary"
             />
           </label>
 
-          <label className="block">
+          <div>
             <span className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">
               유통기한
             </span>
+            <label className="mb-2 flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background px-3.5 py-3">
+              <input
+                type="checkbox"
+                checked={hasNoExpiry}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setHasNoExpiry(checked);
+                  if (!checked && !expiresAt) {
+                    setExpiresAt(
+                      defaultExpiresAt(name, category || null, today),
+                    );
+                  }
+                }}
+                className="size-4 accent-primary"
+              />
+              <span className="text-[13px] font-medium text-foreground">
+                유통기한 없음
+              </span>
+              <span className="text-[11px] text-muted-foreground">
+                (조미료·양념 등)
+              </span>
+            </label>
             <input
-              required
               type="date"
               value={expiresAt}
               min={today}
+              disabled={hasNoExpiry}
+              required={!hasNoExpiry}
               onChange={(e) => setExpiresAt(e.target.value)}
-              className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-[14px] outline-none focus:border-primary"
+              className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-[14px] outline-none focus:border-primary disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground"
             />
             <p className="mt-1 text-[10px] text-muted-foreground">
-              재료명에 맞춰 기본값이 채워져요. 필요하면 수정하세요.
+              {hasNoExpiry
+                ? "무기한으로 저장돼요. D-Day 알림 대상에서 제외됩니다."
+                : "재료명·카테고리에 맞춰 기본값이 채워져요. 필요하면 수정하세요."}
             </p>
-          </label>
+          </div>
 
           {error && (
             <p className="rounded-xl border border-status-urgent-border bg-status-urgent-bg px-3 py-2 text-[12px] text-status-urgent">
