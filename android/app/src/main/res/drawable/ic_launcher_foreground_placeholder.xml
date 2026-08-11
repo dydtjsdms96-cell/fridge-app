@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon FOREGROUND placeholder.
+  Replace mipmap-*/ic_launcher_foreground.png (or point adaptive XML here)
+  with your final 108dp safe-zone artwork later.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Safe zone roughly 66dp centered -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M36,30h36c3.3,0 6,2.7 6,6v36c0,3.3 -2.7,6 -6,6H36c-3.3,0 -6,-2.7 -6,-6V36c0,-3.3 2.7,-6 6,-6z" />
+    <path
+        android:fillColor="#2E5B4C"
+        android:pathData="M32,52h44v3H32z" />
+    <path
+        android:fillColor="#2E5B4C"
+        android:pathData="M66,40h4v10h-4z" />
+    <path
+        android:fillColor="#2E5B4C"
+        android:pathData="M66,60h4v12h-4z" />
+</vector>

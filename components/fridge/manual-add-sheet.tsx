@@ -8,22 +8,31 @@ const ZONES: StorageZone[] = ["냉장", "냉동", "실온", "김치냉장고"];
 
 type ManualAddSheetProps = {
   onClose: () => void;
+  initialZone?: StorageZone;
+  initialSubZone?: string | null;
   onSubmit: (payload: {
     name: string;
     quantity: number;
     unit: string | null;
     zone: StorageZone;
+    sub_zone: string | null;
     category: string | null;
     expires_at: string;
   }) => Promise<void>;
 };
 
-export function ManualAddSheet({ onClose, onSubmit }: ManualAddSheetProps) {
+export function ManualAddSheet({
+  onClose,
+  onSubmit,
+  initialZone = "냉장",
+  initialSubZone = null,
+}: ManualAddSheetProps) {
   const today = useMemo(() => ymdInAppTz(), []);
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unit, setUnit] = useState("개");
-  const [zone, setZone] = useState<StorageZone>("냉장");
+  const [zone, setZone] = useState<StorageZone>(initialZone);
+  const [subZone] = useState<string | null>(initialSubZone);
   const [category, setCategory] = useState("");
   const [expiresAt, setExpiresAt] = useState(() =>
     defaultExpiresAt("", null, today),
@@ -54,6 +63,7 @@ export function ManualAddSheet({ onClose, onSubmit }: ManualAddSheetProps) {
         quantity: Number(quantity) || 1,
         unit: unit.trim() || null,
         zone,
+        sub_zone: subZone?.trim() || null,
         category: category.trim() || null,
         expires_at: expiresAt,
       });
@@ -137,7 +147,8 @@ export function ManualAddSheet({ onClose, onSubmit }: ManualAddSheetProps) {
                   key={z}
                   type="button"
                   onClick={() => setZone(z)}
-                  className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium ${
+                  disabled={Boolean(subZone)}
+                  className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium disabled:opacity-70 ${
                     zone === z
                       ? "bg-primary text-primary-foreground"
                       : "border border-border bg-card text-muted-foreground"
@@ -147,6 +158,11 @@ export function ManualAddSheet({ onClose, onSubmit }: ManualAddSheetProps) {
                 </button>
               ))}
             </div>
+            {subZone && (
+              <p className="mt-2 text-[12px] font-medium text-primary">
+                하위 구역: {subZone}
+              </p>
+            )}
           </div>
 
           <label className="block">

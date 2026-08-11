@@ -1,17 +1,19 @@
 "use client";
 
-import { Keyboard, Mic, X } from "lucide-react";
+import { Camera, Keyboard, Mic, X } from "lucide-react";
 
 type AddOptionsSheetProps = {
   onClose: () => void;
   onSelectManual: () => void;
   onSelectVoice: () => void;
+  onSelectReceipt: () => void;
 };
 
 export function AddOptionsSheet({
   onClose,
   onSelectManual,
   onSelectVoice,
+  onSelectReceipt,
 }: AddOptionsSheetProps) {
   return (
     <div
@@ -71,6 +73,22 @@ export function AddOptionsSheet({
               <p className="text-[14px] font-bold text-foreground">음성 등록</p>
               <p className="mt-0.5 text-[12px] text-muted-foreground">
                 말하면서 여러 재료를 한 번에 등록해요
+              </p>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={onSelectReceipt}
+            className="flex w-full items-center gap-3 rounded-2xl border border-border bg-background px-4 py-4 text-left transition-transform active:scale-[0.98]"
+          >
+            <div className="flex size-11 items-center justify-center rounded-xl bg-[#edf3ef] text-primary">
+              <Camera size={20} />
+            </div>
+            <div>
+              <p className="text-[14px] font-bold text-foreground">영수증 촬영</p>
+              <p className="mt-0.5 text-[12px] text-muted-foreground">
+                영수증 사진으로 재료를 불러와요
               </p>
             </div>
           </button>

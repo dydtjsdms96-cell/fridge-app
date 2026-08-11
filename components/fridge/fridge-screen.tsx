@@ -137,6 +137,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
     quantity: number;
     unit: string | null;
     zone: StorageZone;
+    sub_zone: string | null;
     category: string | null;
     expires_at: string;
   }) {
@@ -154,6 +155,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
         quantity: payload.quantity,
         unit: payload.unit,
         zone: payload.zone,
+        sub_zone: payload.sub_zone,
         category: payload.category,
         expires_at: payload.expires_at,
         status: "보유",
@@ -348,6 +350,10 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
           onSelectVoice={() => {
             setShowAddOptions(false);
             setShowVoice(true);
+          }}
+          onSelectReceipt={() => {
+            setShowAddOptions(false);
+            router.push("/fridge/add/receipt");
           }}
         />
       )}

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Simple fridge mark placeholder for splash / branded launch. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,22h52c4.4,0 8,3.6 8,8v60c0,4.4 -3.6,8 -8,8H34c-4.4,0 -8,-3.6 -8,-8V30c0,-4.4 3.6,-8 8,-8z" />
+    <path
+        android:fillColor="#2E5B4C"
+        android:pathData="M30,54h60v4H30z" />
+    <path
+        android:fillColor="#2E5B4C"
+        android:pathData="M78,36h6v14h-6z" />
+    <path
+        android:fillColor="#2E5B4C"
+        android:pathData="M78,66h6v18h-6z" />
+</vector>

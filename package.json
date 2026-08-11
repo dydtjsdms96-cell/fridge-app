@@ -8,9 +8,18 @@
     "start": "next start",
     "lint": "eslint",
     "upload-recipe-images": "node scripts/upload-recipe-images.mjs",
-    "upload-recipe-images:dry": "node scripts/upload-recipe-images.mjs --dry-run"
+    "upload-recipe-images:dry": "node scripts/upload-recipe-images.mjs --dry-run",
+    "cap:sync": "npx cap sync android",
+    "cap:open": "npx cap open android",
+    "cap:run": "npx cap run android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/app": "^8.1.1",
+    "@capacitor/core": "^8.5.0",
+    "@capacitor/network": "^8.0.1",
+    "@capacitor/splash-screen": "^8.0.2",
+    "@capacitor/status-bar": "^8.0.3",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.2",
     "lucide-react": "^1.30.0",
@@ -19,6 +28,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
