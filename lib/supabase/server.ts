@@ -1,5 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -24,4 +26,24 @@ export async function createClient() {
       },
     },
   );
+}
+
+/**
+ * Prefer cookie session for Server Components. getUser() can return null
+ * (or clear cookies) even when a valid JWT is present, which caused
+ * /settings → /login → / bounce loops.
+ */
+export async function requireUser(): Promise<User> {
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  if (session?.user) return session.user;
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (user) return user;
+
+  redirect("/login");
 }

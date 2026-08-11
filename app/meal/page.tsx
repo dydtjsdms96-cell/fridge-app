@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, requireUser } from "@/lib/supabase/server";
 import {
   buildRecipeMatchesFromJoined,
   type RecipeWithIngredients,
@@ -8,15 +8,10 @@ import type { MealPlanEntry } from "@/lib/meal-plan-types";
 import { AppShell } from "@/components/layout/app-shell";
 import { MealScreen } from "@/components/meal/meal-screen";
 import type { FridgeItem } from "@/types/database";
-import { redirect } from "next/navigation";
 
 export default async function MealPage() {
+  const user = await requireUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
 
   const week = getWeekDayDates();
   const from = week[0].date;

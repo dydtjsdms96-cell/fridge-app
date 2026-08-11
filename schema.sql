@@ -146,10 +146,12 @@ create table storage_zones (
   user_id uuid not null references auth.users(id) on delete cascade,
   base_zone text not null check (base_zone in ('냉장','냉동','실온','김치냉장고')),
   label text not null,
+  sort_order integer not null default 0,
   created_at timestamptz default now()
 );
 
 create index idx_storage_zones_user on storage_zones(user_id, base_zone);
+create index idx_storage_zones_user_base_sort on storage_zones(user_id, base_zone, sort_order);
 
 -- ------------------------------------------------------------
 -- 9. 바코드 → 재료 매핑 (사용자별 학습)

@@ -3,7 +3,9 @@
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
+  type PointerEvent as ReactPointerEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +13,7 @@ import {
   Bell,
   ChevronDown,
   ClipboardList,
+  MoreVertical,
   Plus,
   SlidersHorizontal,
 } from "lucide-react";
@@ -49,6 +52,7 @@ import {
   type ConfirmMode,
 } from "@/components/fridge/item-detail-sheet";
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
+import { Toast, useToast } from "@/components/ui/toast";
 
 type ItemWithMeta = FridgeItem & {
   dDay: number | null;
@@ -74,20 +78,29 @@ type HomeScreenProps = {
   zones: StorageZoneRow[];
 };
 
-export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
+export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScreenProps) {
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
+  const [zones, setZones] = useState(initialZones);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showCookedDish, setShowCookedDish] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
   const [selectedItem, setSelectedItem] = useState<FridgeItem | null>(null);
+  const [renameTarget, setRenameTarget] = useState<HomeZonePanel | null>(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const [renaming, setRenaming] = useState(false);
   const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
+  const { message, showToast } = useToast();
 
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
+
+  useEffect(() => {
+    setZones(initialZones);
+  }, [initialZones]);
 
   const enriched = useMemo(() => enrich(items), [items]);
   const panels = useMemo(
@@ -112,6 +125,80 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
 
   function openAdd(zone: StorageZone, subZone: string | null) {
     setAddTarget({ zone, subZone });
+  }
+
+  function openRename(panel: HomeZonePanel) {
+    if (!panel.id || panel.isVirtual) {
+      showToast("구조 편집에서 칸을 만든 뒤 이름을 바꿀 수 있어요");
+      return;
+    }
+    setRenameTarget(panel);
+    setRenameDraft(panel.label);
+  }
+
+  async function submitRename() {
+    if (!renameTarget?.id || renaming) return;
+    const next = renameDraft.trim();
+    if (!next) {
+      showToast("칸 이름을 입력해 주세요");
+      return;
+    }
+    if (next === renameTarget.label) {
+      setRenameTarget(null);
+      return;
+    }
+    setRenaming(true);
+    const supabase = createClient();
+    const oldLabel = renameTarget.label;
+    const { error } = await supabase
+      .from("storage_zones")
+      .update({ label: next })
+      .eq("id", renameTarget.id);
+    if (error) {
+      console.error("[home] rename zone:", error.message);
+      showToast("이름 변경에 실패했어요");
+      setRenaming(false);
+      return;
+    }
+    await supabase
+      .from("fridge_items")
+      .update({ sub_zone: next })
+      .eq("zone", renameTarget.baseZone)
+      .eq("sub_zone", oldLabel);
+
+    setZones((prev) =>
+      prev.map((z) => (z.id === renameTarget.id ? { ...z, label: next } : z)),
+    );
+    setItems((prev) =>
+      prev.map((item) =>
+        item.zone === renameTarget.baseZone && item.sub_zone === oldLabel
+          ? { ...item, sub_zone: next }
+          : item,
+      ),
+    );
+    setRenameTarget(null);
+    setRenaming(false);
+    router.refresh();
+  }
+
+  async function reorderZones(baseZone: StorageZone, orderedIds: string[]) {
+    setZones((prev) => {
+      const next = prev.map((z) => {
+        if (z.base_zone !== baseZone) return z;
+        const idx = orderedIds.indexOf(z.id);
+        if (idx < 0) return z;
+        return { ...z, sort_order: idx };
+      });
+      return next;
+    });
+
+    const supabase = createClient();
+    await Promise.all(
+      orderedIds.map((id, sort_order) =>
+        supabase.from("storage_zones").update({ sort_order }).eq("id", id),
+      ),
+    );
+    router.refresh();
   }
 
   async function handleManualAdd(payload: {
@@ -357,48 +444,64 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
             <h2 className="text-[13px] font-bold leading-[19.5px] text-foreground">
               냉장고 보기
             </h2>
-            <Link
-              href="/settings/zones"
-              className="flex items-center gap-1.5 rounded-full border border-border bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#2d5a45]"
-            >
-              <SlidersHorizontal size={14} />
-              구조 편집
-            </Link>
+            {!panels.needsStructureSetup && (
+              <Link
+                href="/settings/zones"
+                className="flex items-center gap-1.5 rounded-full border border-border bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#2d5a45]"
+              >
+                <SlidersHorizontal size={14} />
+                구조 편집
+              </Link>
+            )}
           </div>
 
           <div className="flex flex-1 flex-col gap-3 rounded-[20px] border border-border bg-[#f0efe9] p-3 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
-            <ZoneSection
-              title="냉장"
-              panels={panels.fridge}
-              variant="fridge"
-              onAdd={openAdd}
-              onSelectItem={setSelectedItem}
-              metaById={metaById}
-            />
-            <ZoneSection
-              title="냉동"
-              panels={panels.freezer}
-              variant="freezer"
-              onAdd={openAdd}
-              onSelectItem={setSelectedItem}
-              metaById={metaById}
-            />
-            <ZoneSection
-              title="실온"
-              panels={panels.ambient}
-              variant="ambient"
-              onAdd={openAdd}
-              onSelectItem={setSelectedItem}
-              metaById={metaById}
-            />
-            <ZoneSection
-              title="김치냉장고"
-              panels={panels.kimchi}
-              variant="kimchi"
-              onAdd={openAdd}
-              onSelectItem={setSelectedItem}
-              metaById={metaById}
-            />
+            {panels.needsStructureSetup ? (
+              <StructureSetupPrompt />
+            ) : (
+              <>
+                <ZoneSection
+                  title="냉장"
+                  panels={panels.fridge}
+                  variant="fridge"
+                  onAdd={openAdd}
+                  onSelectItem={setSelectedItem}
+                  onRename={openRename}
+                  onReorder={(ids) => void reorderZones("냉장", ids)}
+                  metaById={metaById}
+                />
+                <ZoneSection
+                  title="냉동"
+                  panels={panels.freezer}
+                  variant="freezer"
+                  onAdd={openAdd}
+                  onSelectItem={setSelectedItem}
+                  onRename={openRename}
+                  onReorder={(ids) => void reorderZones("냉동", ids)}
+                  metaById={metaById}
+                />
+                <ZoneSection
+                  title="실온"
+                  panels={panels.ambient}
+                  variant="ambient"
+                  onAdd={openAdd}
+                  onSelectItem={setSelectedItem}
+                  onRename={openRename}
+                  onReorder={(ids) => void reorderZones("실온", ids)}
+                  metaById={metaById}
+                />
+                <ZoneSection
+                  title="김치냉장고"
+                  panels={panels.kimchi}
+                  variant="kimchi"
+                  onAdd={openAdd}
+                  onSelectItem={setSelectedItem}
+                  onRename={openRename}
+                  onReorder={(ids) => void reorderZones("김치냉장고", ids)}
+                  metaById={metaById}
+                />
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -470,7 +573,77 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
         />
       )}
 
+      {renameTarget && (
+        <div className="absolute inset-0 z-50 flex items-end bg-black/40 p-4">
+          <div
+            className="w-full rounded-2xl bg-card p-4 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label="칸 이름 수정"
+          >
+            <p className="text-[14px] font-bold text-foreground">칸 이름 수정</p>
+            <input
+              autoFocus
+              value={renameDraft}
+              onChange={(e) => setRenameDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void submitRename();
+              }}
+              className="mt-3 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-[14px] outline-none focus:border-primary"
+              placeholder="예: 야채칸"
+            />
+            <div className="mt-3 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setRenameTarget(null)}
+                className="flex-1 rounded-xl border border-border py-2.5 text-[13px] font-semibold text-foreground"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                disabled={renaming}
+                onClick={() => void submitRename()}
+                className="flex-1 rounded-xl bg-primary py-2.5 text-[13px] font-semibold text-primary-foreground disabled:opacity-60"
+              >
+                저장
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {duplicateDialog}
+      <Toast message={message} />
+    </div>
+  );
+}
+
+function StructureSetupPrompt() {
+  return (
+    <div className="flex flex-col items-center gap-4 px-3 py-8 text-center">
+      <div className="flex size-14 items-center justify-center rounded-2xl bg-white text-[28px] shadow-sm">
+        🧊
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-[15px] font-bold text-foreground">
+          냉장고 구조를 먼저 만들어 주세요
+        </p>
+        <p className="text-[12px] leading-relaxed text-muted-foreground">
+          기본으로 보이는 칸은 예시예요.
+          <br />
+          현재 상태를 맞추려면 구조 편집에서
+          <br />
+          내 냉장고 칸을 만들어 주세요.
+        </p>
+      </div>
+      <Link
+        href="/settings/zones"
+        className="flex w-full max-w-[260px] items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-[14px] font-bold text-primary-foreground shadow-[0_6px_16px_rgba(61,112,88,0.28)]"
+      >
+        <SlidersHorizontal size={16} />
+        구조 편집하기
+      </Link>
     </div>
   );
 }
@@ -486,7 +659,6 @@ const ZONE_THEME: Record<
     add: string;
     rowHover: string;
     itemText: string;
-    accent?: string;
   }
 > = {
   fridge: {
@@ -504,7 +676,6 @@ const ZONE_THEME: Record<
     add: "border-[#b8d4e8] text-[#3a6a8a]",
     rowHover: "hover:bg-[#dceef8]",
     itemText: "text-[#2a5570]",
-    accent: "bg-[#c2d8e8]",
   },
   ambient: {
     card: "border-[#e8d9c4] bg-[#faf4ea]",
@@ -513,7 +684,6 @@ const ZONE_THEME: Record<
     add: "border-[#e0d0b8] text-[#8a6a3a]",
     rowHover: "hover:bg-[#f3eadc]",
     itemText: "text-[#5c4528]",
-    accent: "bg-[#e0d0b8]",
   },
   kimchi: {
     card: "border-[#c9ddc8] bg-[#eef6ee]",
@@ -522,9 +692,10 @@ const ZONE_THEME: Record<
     add: "border-[#c0d8c4] text-[#3d7058]",
     rowHover: "hover:bg-[#e2efe4]",
     itemText: "text-[#2a4f3c]",
-    accent: "bg-[#c0d8c4]",
   },
 };
+
+const LONG_PRESS_MS = 420;
 
 function ZoneSection({
   title,
@@ -532,6 +703,8 @@ function ZoneSection({
   variant,
   onAdd,
   onSelectItem,
+  onRename,
+  onReorder,
   metaById,
 }: {
   title: string;
@@ -539,9 +712,68 @@ function ZoneSection({
   variant: ZoneVariant;
   onAdd: (zone: StorageZone, subZone: string | null) => void;
   onSelectItem: (item: FridgeItem) => void;
+  onRename: (panel: HomeZonePanel) => void;
+  onReorder: (orderedIds: string[]) => void;
   metaById: Record<string, ItemWithMeta>;
 }) {
+  const [order, setOrder] = useState(panels);
+  const dragId = useRef<string | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const longPressTimer = useRef<number | null>(null);
+  const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    setOrder(panels);
+  }, [panels]);
+
   if (panels.length === 0) return null;
+
+  function clearLongPress() {
+    if (longPressTimer.current != null) {
+      window.clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
+  function startLongPress(panel: HomeZonePanel) {
+    if (!panel.id) return;
+    clearLongPress();
+    longPressTimer.current = window.setTimeout(() => {
+      dragId.current = panel.id;
+      setDraggingId(panel.id);
+    }, LONG_PRESS_MS);
+  }
+
+  function moveDragTo(targetId: string) {
+    if (!dragId.current || dragId.current === targetId) return;
+    setOrder((prev) => {
+      const from = prev.findIndex((p) => p.id === dragId.current);
+      const to = prev.findIndex((p) => p.id === targetId);
+      if (from < 0 || to < 0) return prev;
+      const next = prev.slice();
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  }
+
+  function onPointerMove(e: ReactPointerEvent) {
+    if (!dragId.current) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (!el) return;
+    const card = el.closest("[data-zone-id]") as HTMLElement | null;
+    const targetId = card?.dataset.zoneId;
+    if (targetId) moveDragTo(targetId);
+  }
+
+  function endDrag() {
+    clearLongPress();
+    if (!dragId.current) return;
+    const ids = order.map((p) => p.id).filter((id): id is string => Boolean(id));
+    dragId.current = null;
+    setDraggingId(null);
+    onReorder(ids);
+  }
 
   return (
     <section className="flex flex-col gap-1.5">
@@ -549,14 +781,22 @@ function ZoneSection({
         {title}
       </p>
       <div className="grid grid-cols-2 gap-2">
-        {panels.map((panel, index) => (
+        {order.map((panel) => (
           <ZoneCard
             key={panel.key}
             panel={panel}
-            handleSide={index % 2 === 0 ? "right" : "left"}
             variant={variant}
+            dragging={draggingId === panel.id}
+            cardRef={(node) => {
+              if (panel.id) cardRefs.current[panel.id] = node;
+            }}
             onAdd={() => onAdd(panel.baseZone, panel.label)}
             onSelectItem={onSelectItem}
+            onRename={() => onRename(panel)}
+            onPointerDownCard={() => startLongPress(panel)}
+            onPointerMoveCard={onPointerMove}
+            onPointerUpCard={endDrag}
+            onPointerCancelCard={endDrag}
             metaById={metaById}
           />
         ))}
@@ -565,37 +805,48 @@ function ZoneSection({
   );
 }
 
-/** Compact zone panel — list rows, page scroll only (no nested scroll). */
 function ZoneCard({
   panel,
-  handleSide,
   variant,
+  dragging,
+  cardRef,
   onAdd,
   onSelectItem,
+  onRename,
+  onPointerDownCard,
+  onPointerMoveCard,
+  onPointerUpCard,
+  onPointerCancelCard,
   metaById,
 }: {
   panel: HomeZonePanel;
-  handleSide?: "left" | "right";
   variant: ZoneVariant;
+  dragging: boolean;
+  cardRef: (node: HTMLDivElement | null) => void;
   onAdd: () => void;
   onSelectItem: (item: FridgeItem) => void;
+  onRename: () => void;
+  onPointerDownCard: () => void;
+  onPointerMoveCard: (e: ReactPointerEvent) => void;
+  onPointerUpCard: () => void;
+  onPointerCancelCard: () => void;
   metaById: Record<string, ItemWithMeta>;
 }) {
   const theme = ZONE_THEME[variant];
-  const showDoorHandle = variant === "fridge";
 
   return (
-    <div className={`flex flex-col rounded-xl border ${theme.card}`}>
-      <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1">
-        {showDoorHandle && handleSide === "left" && (
-          <div className="h-4 w-0.5 shrink-0 rounded bg-[#d4d0c8]" aria-hidden />
-        )}
-        {!showDoorHandle && theme.accent && (
-          <div
-            className={`h-0.5 w-8 shrink-0 rounded ${theme.accent}`}
-            aria-hidden
-          />
-        )}
+    <div
+      ref={cardRef}
+      data-zone-id={panel.id ?? undefined}
+      className={`flex touch-none flex-col rounded-xl border transition-shadow ${theme.card} ${
+        dragging ? "scale-[1.02] shadow-lg ring-2 ring-primary/30" : ""
+      }`}
+      onPointerDown={onPointerDownCard}
+      onPointerMove={onPointerMoveCard}
+      onPointerUp={onPointerUpCard}
+      onPointerCancel={onPointerCancelCard}
+    >
+      <div className="flex items-center gap-1 px-2 pt-1.5 pb-1">
         <p
           className={`min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight ${theme.title}`}
         >
@@ -606,9 +857,18 @@ function ZoneCard({
             </span>
           )}
         </p>
-        {showDoorHandle && handleSide === "right" && (
-          <div className="h-4 w-0.5 shrink-0 rounded bg-[#d4d0c8]" aria-hidden />
-        )}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onRename();
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className="touch-target flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground"
+          aria-label={`${panel.label} 메뉴`}
+        >
+          <MoreVertical size={14} />
+        </button>
       </div>
 
       <div className="flex flex-col gap-0.5 px-1.5 pb-1.5">
@@ -628,6 +888,7 @@ function ZoneCard({
         <button
           type="button"
           onClick={onAdd}
+          onPointerDown={(e) => e.stopPropagation()}
           className={`flex h-8 items-center justify-center gap-1 rounded-lg border border-dashed text-[11px] font-medium ${theme.add}`}
           aria-label={`${panel.label}에 추가`}
         >
@@ -662,6 +923,7 @@ function ItemListRow({
     <button
       type="button"
       onClick={onClick}
+      onPointerDown={(e: ReactPointerEvent) => e.stopPropagation()}
       className={`flex h-9 w-full items-center gap-1.5 rounded-lg px-1.5 text-left transition-colors active:bg-black/[0.04] ${theme.rowHover}`}
     >
       <FoodIcon

@@ -47,6 +47,7 @@ export interface StorageZoneRow {
   user_id: string;
   base_zone: StorageZone;
   label: string;
+  sort_order: number;
   created_at: string | null;
 }
 

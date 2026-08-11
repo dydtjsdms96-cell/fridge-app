@@ -43,6 +43,8 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
+  // Use claims for the auth gate. Avoid getUser() here — a failed network
+  // validation can clear cookies and bounce logged-in users to /login.
   const { data } = await supabase.auth.getClaims();
   const user = data?.claims;
 

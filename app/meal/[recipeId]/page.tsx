@@ -1,5 +1,5 @@
-import { notFound, redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
+import { createClient, requireUser } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/app-shell";
 import { RecipeDetailScreen } from "@/components/meal/recipe-detail-screen";
 import type { FridgeItem, Recipe, RecipeIngredient } from "@/types/database";
@@ -10,12 +10,8 @@ type PageProps = {
 
 export default async function RecipeDetailPage({ params }: PageProps) {
   const { recipeId } = await params;
+  const user = await requireUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
 
   const [recipeRes, fridgeRes] = await Promise.all([
     supabase

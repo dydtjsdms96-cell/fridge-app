@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, requireUser } from "@/lib/supabase/server";
 import { ymdInAppTz } from "@/lib/dday";
 import { AppShell } from "@/components/layout/app-shell";
 import { SettingsScreen } from "@/components/settings/settings-screen";
@@ -28,12 +27,8 @@ function currentMonthRangeSeoul(): {
 }
 
 export default async function SettingsPage() {
+  const user = await requireUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
 
   let { data: profile, error } = await supabase
     .from("profiles")

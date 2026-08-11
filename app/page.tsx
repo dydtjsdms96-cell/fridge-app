@@ -24,6 +24,7 @@ async function getStorageZones(): Promise<StorageZoneRow[]> {
   const { data, error } = await supabase
     .from("storage_zones")
     .select("*")
+    .order("sort_order", { ascending: true })
     .order("created_at", { ascending: true });
 
   if (error) {

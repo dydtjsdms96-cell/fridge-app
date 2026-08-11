@@ -40,6 +40,13 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
     for (const row of items) {
       if (map[row.base_zone]) map[row.base_zone].push(row);
     }
+    for (const zone of BASE_ZONES) {
+      map[zone].sort(
+        (a, b) =>
+          (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+          a.label.localeCompare(b.label, "ko"),
+      );
+    }
     return map;
   }, [items]);
 
@@ -52,9 +59,19 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
     if (!label || busy) return;
     setBusy(true);
     const supabase = createClient();
+    const nextOrder =
+      items.filter((z) => z.base_zone === baseZone).reduce(
+        (max, z) => Math.max(max, z.sort_order ?? 0),
+        -1,
+      ) + 1;
     const { data, error } = await supabase
       .from("storage_zones")
-      .insert({ user_id: userId, base_zone: baseZone, label })
+      .insert({
+        user_id: userId,
+        base_zone: baseZone,
+        label,
+        sort_order: nextOrder,
+      })
       .select("*")
       .single();
 

@@ -1,16 +1,11 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient, requireUser } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/app-shell";
 import { ShoppingScreen } from "@/components/shopping/shopping-screen";
 import type { ShoppingList } from "@/types/database";
 
 export default async function ShoppingPage() {
+  const user = await requireUser();
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) redirect("/login");
 
   const { data, error } = await supabase
     .from("shopping_list")
