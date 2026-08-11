@@ -294,7 +294,7 @@ function ItemDetailContent({
             <p className="mb-2.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
               유통기한
             </p>
-            <label className="mb-2 flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3.5 py-3">
+            <label className="mb-2 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3.5 py-2">
               <input
                 type="checkbox"
                 checked={hasNoExpiry}
@@ -307,7 +307,7 @@ function ItemDetailContent({
                     );
                   }
                 }}
-                className="size-4 accent-primary"
+                className="size-5 accent-primary"
               />
               <span className="text-[13px] font-medium text-foreground">
                 유통기한 없음
@@ -441,7 +441,7 @@ function ItemDetailContent({
               <button
                 type="button"
                 onClick={() => setUsagePct(Math.max(0, usagePct - 10))}
-                className="flex size-9 items-center justify-center rounded-xl border border-border bg-card shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
+                className="touch-target flex size-11 items-center justify-center rounded-xl border border-border bg-card shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
               >
                 <Minus size={14} className="text-foreground" />
               </button>
@@ -455,7 +455,7 @@ function ItemDetailContent({
               <button
                 type="button"
                 onClick={() => setUsagePct(Math.min(100, usagePct + 10))}
-                className="flex size-9 items-center justify-center rounded-xl border border-border bg-card shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
+                className="touch-target flex size-11 items-center justify-center rounded-xl border border-border bg-card shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
               >
                 <Plus size={14} className="text-foreground" />
               </button>

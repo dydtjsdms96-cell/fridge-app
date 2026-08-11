@@ -124,7 +124,7 @@ export function CategoriesScreen({
         <button
           type="button"
           onClick={() => router.push("/settings")}
-          className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
+          className="touch-target flex size-11 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
           aria-label="뒤로"
         >
           <ChevronLeft size={18} />
@@ -140,7 +140,7 @@ export function CategoriesScreen({
             setDraftIcon(EMOJI_OPTIONS[0]);
             setShowAdd(true);
           }}
-          className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.35)]"
+          className="touch-target flex size-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.35)]"
           aria-label="카테고리 추가"
         >
           <Plus size={18} strokeWidth={2.5} />

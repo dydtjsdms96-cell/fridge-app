@@ -16,6 +16,7 @@ import {
 } from "@/components/fridge/manual-add-sheet";
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 import { Toast, useToast } from "@/components/ui/toast";
+import { useImmersiveMode } from "@/components/layout/immersive-mode";
 
 const SCANNER_ID = "barcode-scanner-region";
 
@@ -55,6 +56,7 @@ export function BarcodeAddScreen() {
   const [cameraUnavailable, setCameraUnavailable] = useState(false);
   const [prefill, setPrefill] = useState<FormPrefill | null>(null);
   const { message, showToast } = useToast(2800);
+  useImmersiveMode(true);
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -268,7 +270,7 @@ export function BarcodeAddScreen() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex size-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white"
+          className="touch-target flex size-11 items-center justify-center rounded-full border border-white/15 bg-white/10 text-white"
           aria-label="뒤로"
         >
           <ChevronLeft size={18} />
@@ -300,7 +302,7 @@ export function BarcodeAddScreen() {
         )}
       </div>
 
-      <div className="px-5 pb-6">
+      <div className="safe-bottom-max px-5 pt-2">
         <button
           type="button"
           onClick={() =>
@@ -308,7 +310,7 @@ export function BarcodeAddScreen() {
               "수동으로 입력해주세요",
             )
           }
-          className="w-full rounded-2xl border border-white/20 bg-white/10 py-3.5 text-[13px] font-semibold text-white"
+          className="touch-target w-full rounded-2xl border border-white/20 bg-white/10 py-3.5 text-[13px] font-semibold text-white"
         >
           수동으로 입력하기
         </button>

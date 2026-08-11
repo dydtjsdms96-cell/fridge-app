@@ -213,7 +213,7 @@ export function RecipeDetailScreen({
           <button
             type="button"
             onClick={() => router.push("/meal")}
-            className="absolute top-3 left-3 z-10 flex size-9 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm backdrop-blur-sm transition-transform active:scale-95"
+            className="touch-target absolute top-3 left-3 z-10 flex size-11 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm backdrop-blur-sm transition-transform active:scale-95"
             aria-label="뒤로"
           >
             <ChevronLeft size={20} />
@@ -255,7 +255,7 @@ export function RecipeDetailScreen({
                   aria-label="인분 줄이기"
                   disabled={servings <= 1}
                   onClick={() => setServingsClamped(servings - 1)}
-                  className="flex size-8 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-transform active:scale-95 disabled:opacity-40"
+                  className="touch-target flex size-11 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-transform active:scale-95 disabled:opacity-40"
                 >
                   <Minus size={14} />
                 </button>
@@ -270,7 +270,7 @@ export function RecipeDetailScreen({
                   aria-label="인분 늘리기"
                   disabled={servings >= 4}
                   onClick={() => setServingsClamped(servings + 1)}
-                  className="flex size-8 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-transform active:scale-95 disabled:opacity-40"
+                  className="touch-target flex size-11 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-transform active:scale-95 disabled:opacity-40"
                 >
                   <Plus size={14} />
                 </button>
@@ -441,12 +441,12 @@ export function RecipeDetailScreen({
         </section>
       </div>
 
-      <div className="shrink-0 border-t border-border bg-background px-5 py-4">
+      <div className="safe-bottom-max shrink-0 border-t border-border bg-background px-5 pt-4">
         <button
           type="button"
           disabled={!allDone || busy}
           onClick={() => setShowDeductConfirm(true)}
-          className="w-full rounded-[16px] bg-primary py-3.5 text-[13px] font-bold text-primary-foreground shadow-[0_4px_16px_rgba(61,112,88,0.2)] transition-transform active:scale-[0.98] disabled:opacity-50"
+          className="touch-target w-full rounded-[16px] bg-primary py-3.5 text-[13px] font-bold text-primary-foreground shadow-[0_4px_16px_rgba(61,112,88,0.2)] transition-transform active:scale-[0.98] disabled:opacity-50"
         >
           조리 완료 ({doneCount}/{totalSteps || 0}단계)
         </button>

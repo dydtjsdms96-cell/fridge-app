@@ -159,19 +159,19 @@ function CookedDishForm({
         <span className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">
           유통기한
         </span>
-        <label className="mb-2 flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3.5 py-3">
-          <input
-            type="checkbox"
-            checked={hasNoExpiry}
-            onChange={(e) => {
-              const checked = e.target.checked;
-              setHasNoExpiry(checked);
-              if (!checked && !expiresAt) {
-                setExpiresAt(addDaysYmd(today, 3));
-              }
-            }}
-            className="size-4 accent-primary"
-          />
+          <label className="mb-2 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-muted/40 px-3.5 py-2">
+            <input
+              type="checkbox"
+              checked={hasNoExpiry}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setHasNoExpiry(checked);
+                if (!checked && !expiresAt) {
+                  setExpiresAt(addDaysYmd(today, 3));
+                }
+              }}
+              className="size-5 accent-primary"
+            />
           <span className="text-[13px] font-medium text-foreground">
             유통기한 없음
           </span>

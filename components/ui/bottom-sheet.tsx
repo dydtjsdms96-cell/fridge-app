@@ -81,7 +81,7 @@ export function BottomSheet({
       role="presentation"
     >
       <div
-        className={`relative flex max-h-[88%] w-full flex-col overflow-hidden rounded-t-[28px] bg-card shadow-[0_-8px_48px_rgba(0,0,0,0.18)] transition-transform ${
+        className={`relative flex max-h-[88%] w-full flex-col overflow-hidden rounded-t-[28px] bg-card shadow-[0_-8px_48px_rgba(0,0,0,0.18)] transition-transform safe-bottom ${
           entered ? "translate-y-0" : "translate-y-full"
         } ${className}`}
         style={{

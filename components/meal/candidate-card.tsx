@@ -45,7 +45,7 @@ export function CandidateCard({ match, onAdd }: CandidateCardProps) {
       <button
         type="button"
         onClick={onAdd}
-        className="flex size-8 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-secondary text-primary transition-transform active:scale-95"
+        className="touch-target flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/20 bg-secondary text-primary transition-transform active:scale-95"
         aria-label={`${recipe.title} 배치`}
       >
         <Plus size={14} />

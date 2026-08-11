@@ -9,6 +9,7 @@ import { ManualAddSheet } from "@/components/fridge/manual-add-sheet";
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 import type { ManualAddPayload } from "@/components/fridge/manual-add-sheet";
 import { Toast, useToast } from "@/components/ui/toast";
+import { useImmersiveMode } from "@/components/layout/immersive-mode";
 
 export function ReceiptAddScreen() {
   const router = useRouter();
@@ -18,6 +19,7 @@ export function ReceiptAddScreen() {
   const { message, showToast } = useToast();
   const [showManualAdd, setShowManualAdd] = useState(false);
   const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
+  useImmersiveMode(true);
 
   useEffect(() => {
     return () => {
@@ -63,7 +65,7 @@ export function ReceiptAddScreen() {
         <button
           type="button"
           onClick={() => router.back()}
-          className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
+          className="touch-target flex size-11 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
           aria-label="뒤로"
         >
           <ChevronLeft size={18} />
@@ -78,7 +80,7 @@ export function ReceiptAddScreen() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col px-5 pb-6">
+      <div className="flex min-h-0 flex-1 flex-col px-5 pb-6 safe-bottom">
         <input
           ref={inputRef}
           type="file"
@@ -140,7 +142,7 @@ export function ReceiptAddScreen() {
           type="button"
           disabled={!previewUrl}
           onClick={handleRecognize}
-          className="mt-4 w-full rounded-2xl bg-primary py-3.5 text-[15px] font-bold text-primary-foreground disabled:opacity-40"
+          className="touch-target mt-4 w-full rounded-2xl bg-primary py-3.5 text-[15px] font-bold text-primary-foreground disabled:opacity-40"
         >
           인식하기
         </button>

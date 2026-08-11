@@ -13,6 +13,7 @@ import {
   BottomSheet,
   useBottomSheetClose,
 } from "@/components/ui/bottom-sheet";
+import { useImmersiveMode } from "@/components/layout/immersive-mode";
 
 const DEMO_TAGS = ["계란", "두부", "대파", "닭고기"];
 
@@ -61,6 +62,7 @@ export function VoiceRegisterFlow({
   onClose,
   onRegister,
 }: VoiceRegisterFlowProps) {
+  useImmersiveMode(true);
   const today = ymdInAppTz();
   const [step, setStep] = useState<"listen" | "review">("listen");
   const [revealedTags, setRevealedTags] = useState<string[]>([]);
@@ -111,7 +113,7 @@ export function VoiceRegisterFlow({
         <button
           type="button"
           onClick={onClose}
-          className="flex items-center gap-1.5 text-[13px] font-medium text-white/60"
+          className="touch-target flex items-center gap-1.5 px-2 text-[13px] font-medium text-white/60"
         >
           <X size={15} />
           취소
@@ -263,8 +265,8 @@ function VoiceReviewPanel({
         <button
           type="button"
           onClick={close}
-          className="flex size-9 items-center justify-center rounded-full border border-border bg-card"
-          aria-label="닫기"
+            className="touch-target flex size-11 items-center justify-center rounded-full border border-border bg-card"
+            aria-label="닫기"
         >
           <X size={16} className="text-muted-foreground" />
         </button>
@@ -287,7 +289,7 @@ function VoiceReviewPanel({
                 className="w-28 rounded-lg border border-border bg-background px-2 py-1.5 text-[11px] outline-none focus:border-primary"
               />
             </div>
-            <label className="mb-2 flex cursor-pointer items-center gap-2">
+            <label className="mb-2 flex min-h-11 cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={item.has_no_expiry}
@@ -299,7 +301,7 @@ function VoiceReviewPanel({
                       : defaultExpiresAt(item.name, item.category, today),
                   })
                 }
-                className="size-4 accent-primary"
+                className="size-5 accent-primary"
               />
               <span className="text-[12px] font-medium text-foreground">
                 유통기한 없음

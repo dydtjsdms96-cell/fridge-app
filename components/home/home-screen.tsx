@@ -319,7 +319,7 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
             </div>
             <button
               type="button"
-              className="flex size-9 items-center justify-center rounded-[18px] border border-border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
+              className="touch-target flex size-11 items-center justify-center rounded-[18px] border border-border bg-white shadow-[0_1px_3px_rgba(0,0,0,0.06)]"
               aria-label="알림"
             >
               <Bell size={18} className="text-foreground/55" />
@@ -405,7 +405,7 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
       <button
         type="button"
         onClick={() => setShowAddOptions(true)}
-        className="absolute right-5 bottom-5 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_12px_rgba(61,112,88,0.4)] transition-transform active:scale-95"
+        className="fab-safe-bottom absolute right-5 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_12px_rgba(61,112,88,0.4)] transition-transform active:scale-95"
         aria-label="재료 추가"
       >
         <Plus size={24} strokeWidth={2.5} />

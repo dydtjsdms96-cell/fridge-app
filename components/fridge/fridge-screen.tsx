@@ -498,7 +498,7 @@ export function FridgeScreen({
       <button
         type="button"
         onClick={() => setShowAddOptions(true)}
-        className="absolute right-5 bottom-3 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_24px_rgba(61,112,88,0.4)] transition-transform active:scale-95"
+        className="fab-safe-bottom absolute right-5 z-40 flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-[0_8px_24px_rgba(61,112,88,0.4)] transition-transform active:scale-95"
         aria-label="재료 추가"
       >
         <Plus size={24} strokeWidth={2.5} />

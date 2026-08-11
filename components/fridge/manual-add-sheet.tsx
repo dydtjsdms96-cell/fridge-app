@@ -12,6 +12,7 @@ import {
   BottomSheet,
   useBottomSheetClose,
 } from "@/components/ui/bottom-sheet";
+import { useImmersiveMode } from "@/components/layout/immersive-mode";
 
 const ZONES: StorageZone[] = ["냉장", "냉동", "실온", "김치냉장고"];
 
@@ -42,6 +43,7 @@ type ManualAddSheetProps = {
 };
 
 export function ManualAddSheet(props: ManualAddSheetProps) {
+  useImmersiveMode(true);
   return (
     <BottomSheet onClose={props.onClose} ariaLabel={props.title ?? "수동 등록"}>
       <ManualAddForm {...props} />
@@ -193,11 +195,11 @@ function ManualAddForm({
                 type="button"
                 onClick={() => setZone(z)}
                 disabled={Boolean(subZone)}
-                className={`rounded-full px-3.5 py-1.5 text-[12px] font-medium disabled:opacity-70 ${
-                  zone === z
-                    ? "bg-primary text-primary-foreground"
-                    : "border border-border bg-card text-muted-foreground"
-                }`}
+              className={`touch-target shrink-0 rounded-full px-3.5 py-2.5 text-[12px] font-medium disabled:opacity-70 ${
+                    zone === z
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-card text-muted-foreground"
+                  }`}
               >
                 {z}
               </button>
@@ -230,19 +232,19 @@ function ManualAddForm({
           <span className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">
             유통기한
           </span>
-          <label className="mb-2 flex cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background px-3.5 py-3">
-            <input
-              type="checkbox"
-              checked={hasNoExpiry}
-              onChange={(e) => {
-                const checked = e.target.checked;
-                setHasNoExpiry(checked);
-                if (!checked && !expiresAt) {
-                  setExpiresAt(defaultExpiresAt(name, category || null, today));
-                }
-              }}
-              className="size-4 accent-primary"
-            />
+            <label className="mb-2 flex min-h-11 cursor-pointer items-center gap-2.5 rounded-xl border border-border bg-background px-3.5 py-2">
+              <input
+                type="checkbox"
+                checked={hasNoExpiry}
+                onChange={(e) => {
+                  const checked = e.target.checked;
+                  setHasNoExpiry(checked);
+                  if (!checked && !expiresAt) {
+                    setExpiresAt(defaultExpiresAt(name, category || null, today));
+                  }
+                }}
+                className="size-5 accent-primary"
+              />
             <span className="text-[13px] font-medium text-foreground">
               유통기한 없음
             </span>

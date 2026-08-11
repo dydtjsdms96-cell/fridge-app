@@ -85,6 +85,24 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* Minimum 44×44 touch target (Apple HIG) */
+.touch-target {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.safe-bottom-max {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+}
+
+.fab-safe-bottom {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
 @keyframes voiceBar {
   0%,
   100% {

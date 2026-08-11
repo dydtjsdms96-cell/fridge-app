@@ -142,7 +142,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
           <button
             type="button"
             onClick={() => setShowAdd(true)}
-            className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground/70 shadow-[0_1px_6px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
+            className="touch-target flex size-11 shrink-0 items-center justify-center rounded-full border border-border bg-card text-foreground/70 shadow-[0_1px_6px_rgba(0,0,0,0.06)] transition-transform active:scale-95"
             aria-label="수동 추가"
           >
             <Plus size={17} strokeWidth={2.5} />
@@ -207,12 +207,12 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
         )}
       </div>
 
-      <div className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6 lg:px-8">
+      <div className="safe-bottom-max shrink-0 border-t border-border bg-background px-4 pt-3 sm:px-6 lg:px-8">
         <button
           type="button"
           onClick={openCoupangBundle}
           disabled={pending.length === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[13px] font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
+          className="touch-target flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 text-[13px] font-bold text-white transition-transform active:scale-[0.98] disabled:opacity-40"
           style={{
             backgroundColor: "#C00000",
             boxShadow:
@@ -332,7 +332,7 @@ function ShoppingRow({
       <button
         type="button"
         onClick={onToggle}
-        className={`flex size-5 shrink-0 items-center justify-center rounded-full transition-colors ${
+        className={`touch-target flex size-11 shrink-0 items-center justify-center rounded-full transition-colors ${
           checked
             ? "bg-primary"
             : "border-2 border-muted-foreground/30 hover:border-primary"

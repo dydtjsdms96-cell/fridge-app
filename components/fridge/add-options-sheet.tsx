@@ -66,7 +66,7 @@ function AddOptionsBody({
         <button
           type="button"
           onClick={close}
-          className="flex size-9 items-center justify-center rounded-full border border-border bg-background"
+          className="touch-target flex size-11 items-center justify-center rounded-full border border-border bg-background"
           aria-label="닫기"
         >
           <X size={16} className="text-muted-foreground" />

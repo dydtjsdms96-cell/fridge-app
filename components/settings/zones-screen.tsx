@@ -91,7 +91,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
         <button
           type="button"
           onClick={() => router.push("/settings")}
-          className="flex size-9 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
+          className="touch-target flex size-11 items-center justify-center rounded-full border border-border bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.06)]"
           aria-label="뒤로"
         >
           <ChevronLeft size={18} />
