@@ -22,6 +22,10 @@ import {
 import { FoodIcon } from "@/components/ui/food-icon";
 import { formatQuantity } from "@/lib/quantity";
 import { EXPIRY_STYLES } from "@/components/home/expiry-styles";
+import {
+  BottomSheet,
+  useBottomSheetClose,
+} from "@/components/ui/bottom-sheet";
 
 export type ConfirmMode = "consume" | "discard";
 
@@ -114,14 +118,22 @@ type ItemDetailSheetProps = {
   onRepurchase?: () => void;
 };
 
-export function ItemDetailSheet({
+export function ItemDetailSheet(props: ItemDetailSheetProps) {
+  return (
+    <BottomSheet onClose={props.onClose} ariaLabel={props.item.name}>
+      <ItemDetailContent {...props} />
+    </BottomSheet>
+  );
+}
+
+function ItemDetailContent({
   item,
-  onClose,
   onSavePartial,
   onSaveExpires,
   onRemove,
   onRepurchase,
 }: ItemDetailSheetProps) {
+  const close = useBottomSheetClose();
   const isArchived = item.status === "소진" || item.status === "폐기";
   const hasNoExpiryStored = Boolean(item.has_no_expiry);
   const dDay = hasNoExpiryStored ? null : getDDay(item.expires_at);
@@ -157,7 +169,7 @@ export function ItemDetailSheet({
 
   function handlePartialSave() {
     if (usagePct === 0) {
-      onClose();
+      close();
       return;
     }
     if (usagePct >= 100) {
@@ -168,20 +180,8 @@ export function ItemDetailSheet({
   }
 
   return (
-    <div
-      className="absolute inset-0 z-50 flex items-end"
-      style={{ background: "rgba(0,0,0,0.42)" }}
-      onClick={onClose}
-    >
-      <div
-        className="relative flex max-h-[88%] w-full flex-col overflow-hidden rounded-t-[28px] bg-card shadow-[0_-8px_48px_rgba(0,0,0,0.18)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="flex justify-center pt-3 pb-1">
-            <div className="h-1 w-10 rounded-full bg-muted" />
-          </div>
-
+    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
           <div className="px-5 pt-3 pb-4">
             <div className="flex items-start gap-4">
               <div className="flex size-[68px] shrink-0 items-center justify-center rounded-2xl border border-border bg-background">
@@ -279,7 +279,7 @@ export function ItemDetailSheet({
                 )}
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={close}
                   className="w-full rounded-xl border border-border bg-muted py-3 text-[12px] font-semibold text-foreground transition-transform active:scale-[0.98]"
                 >
                   닫기
@@ -524,7 +524,6 @@ export function ItemDetailSheet({
             onCancel={() => setConfirmMode(null)}
           />
         )}
-      </div>
     </div>
   );
 }

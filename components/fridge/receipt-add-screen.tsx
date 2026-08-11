@@ -8,13 +8,14 @@ import { saveFridgeItem } from "@/lib/fridge-item-upsert";
 import { ManualAddSheet } from "@/components/fridge/manual-add-sheet";
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 import type { ManualAddPayload } from "@/components/fridge/manual-add-sheet";
+import { Toast, useToast } from "@/components/ui/toast";
 
 export function ReceiptAddScreen() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const { message, showToast } = useToast();
   const [showManualAdd, setShowManualAdd] = useState(false);
   const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
 
@@ -33,9 +34,8 @@ export function ReceiptAddScreen() {
 
   function handleRecognize() {
     if (!previewUrl) return;
-    setToast("영수증 인식 기능은 준비 중입니다");
+    showToast("영수증 인식 기능은 준비 중입니다", 900);
     window.setTimeout(() => {
-      setToast(null);
       setShowManualAdd(true);
     }, 900);
   }
@@ -146,13 +146,7 @@ export function ReceiptAddScreen() {
         </button>
       </div>
 
-      {toast && (
-        <div className="pointer-events-none absolute inset-x-5 top-20 z-50 flex justify-center">
-          <div className="rounded-full bg-foreground/90 px-4 py-2.5 text-[13px] font-medium text-white shadow-lg">
-            {toast}
-          </div>
-        </div>
-      )}
+      <Toast message={message} position="top" />
 
       {showManualAdd && (
         <ManualAddSheet

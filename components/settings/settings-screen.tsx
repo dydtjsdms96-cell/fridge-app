@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, LogOut } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { FridgeItem } from "@/types/database";
+import { Toast, useToast, TOAST_COMING_SOON } from "@/components/ui/toast";
 
 type SettingsScreenProps = {
   email: string;
@@ -247,12 +248,7 @@ export function SettingsScreen({
   const [savingTime, setSavingTime] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-
-  function showToast(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2200);
-  }
+  const { message, showToast } = useToast();
 
   async function handleLogout() {
     if (loggingOut) return;
@@ -398,11 +394,11 @@ export function SettingsScreen({
           <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
             <SettingsRow
               label="유통기한 D-3 주의 알림"
-              onClick={() => showToast("준비 중입니다")}
+              onClick={() => showToast(TOAST_COMING_SOON)}
             />
             <SettingsRow
               label="D-7 사전 알림"
-              onClick={() => showToast("준비 중입니다")}
+              onClick={() => showToast(TOAST_COMING_SOON)}
             />
             <div className="flex items-center justify-between gap-3 px-4 py-3.5">
               <p className="min-w-0 text-[13px] leading-[19.5px] text-foreground">
@@ -452,7 +448,7 @@ export function SettingsScreen({
           <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
             <SettingsRow
               label="테마"
-              onClick={() => showToast("준비 중입니다")}
+              onClick={() => showToast(TOAST_COMING_SOON)}
               trailing={
                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   준비 중
@@ -462,7 +458,7 @@ export function SettingsScreen({
             />
             <SettingsRow
               label="언어"
-              onClick={() => showToast("준비 중입니다")}
+              onClick={() => showToast(TOAST_COMING_SOON)}
               trailing={
                 <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                   준비 중
@@ -478,13 +474,7 @@ export function SettingsScreen({
         </div>
       </div>
 
-      {toast && (
-        <div className="pointer-events-none absolute inset-x-5 bottom-6 z-20">
-          <div className="rounded-2xl bg-foreground/90 px-4 py-3 text-center text-[12px] font-semibold text-background shadow-lg">
-            {toast}
-          </div>
-        </div>
-      )}
+      <Toast message={message} />
     </div>
   );
 }

@@ -21,6 +21,7 @@ import {
   MealPlacementSheet,
   type SlotOccupant,
 } from "@/components/meal/meal-placement-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const FILTER_CHIPS: { id: RecipeFilter; label: string }[] = [
   { id: "전체", label: "전체" },
@@ -141,18 +142,21 @@ export function MealScreen({
               ))}
             </div>
             {filtered.length === 0 && (
-              <div className="flex flex-col items-center gap-2 py-12">
-                <UtensilsCrossed
-                  size={28}
-                  className="text-muted-foreground opacity-40"
-                  aria-hidden
-                />
-                <p className="text-sm text-muted-foreground">
-                  {matches.length === 0
+              <EmptyState
+                variant="section"
+                title={
+                  matches.length === 0
                     ? "등록된 레시피가 없어요"
-                    : "해당 조건의 레시피가 없어요"}
-                </p>
-              </div>
+                    : "해당 조건의 레시피가 없어요"
+                }
+                icon={
+                  <UtensilsCrossed
+                    size={28}
+                    className="text-muted-foreground"
+                    aria-hidden
+                  />
+                }
+              />
             )}
           </div>
         </div>
@@ -184,12 +188,11 @@ export function MealScreen({
             if (error) {
               console.error("[meal_plan] place error:", error);
               window.alert(error);
-              return;
+              throw new Error(error);
             }
             if (data) {
               setPlans((prev) => [...prev, data]);
             }
-            setPlacing(null);
           }}
           onClose={() => setPlacing(null)}
         />

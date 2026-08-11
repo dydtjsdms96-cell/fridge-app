@@ -18,6 +18,7 @@ import {
   ItemDetailSheet,
   type ConfirmMode,
 } from "@/components/fridge/item-detail-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
 import { AddOptionsSheet } from "@/components/fridge/add-options-sheet";
 import { ManualAddSheet } from "@/components/fridge/manual-add-sheet";
 import {
@@ -410,16 +411,20 @@ export function FridgeScreen({
             />
           ))}
           {filtered.length === 0 && (
-            <div className="col-span-2 flex flex-col items-center gap-2 py-12 sm:col-span-3 lg:col-span-4">
-              <span className="text-3xl opacity-30">
-                {items.length === 0 ? "🧊" : "🔍"}
-              </span>
-              <p className="text-sm text-muted-foreground">
-                {items.length === 0
+            <EmptyState
+              variant="section"
+              className="sm:col-span-3 lg:col-span-4"
+              title={
+                items.length === 0
                   ? "냉장고가 비어 있어요"
-                  : "검색 결과가 없어요"}
-              </p>
-            </div>
+                  : "검색 결과가 없어요"
+              }
+              icon={
+                <span className="text-3xl opacity-30" aria-hidden>
+                  {items.length === 0 ? "🧊" : "🔍"}
+                </span>
+              }
+            />
           )}
         </div>
 
@@ -519,23 +524,18 @@ export function FridgeScreen({
         <AddOptionsSheet
           onClose={() => setShowAddOptions(false)}
           onSelectManual={() => {
-            setShowAddOptions(false);
             setShowManualAdd(true);
           }}
           onSelectVoice={() => {
-            setShowAddOptions(false);
             setShowVoice(true);
           }}
           onSelectReceipt={() => {
-            setShowAddOptions(false);
             router.push("/fridge/add/receipt");
           }}
           onSelectBarcode={() => {
-            setShowAddOptions(false);
             router.push("/fridge/add/barcode");
           }}
           onSelectCookedDish={() => {
-            setShowAddOptions(false);
             setShowCookedDish(true);
           }}
         />

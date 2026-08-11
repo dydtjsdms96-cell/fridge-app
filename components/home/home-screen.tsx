@@ -415,23 +415,18 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
         <AddOptionsSheet
           onClose={() => setShowAddOptions(false)}
           onSelectManual={() => {
-            setShowAddOptions(false);
             setShowManualAdd(true);
           }}
           onSelectVoice={() => {
-            setShowAddOptions(false);
             setShowVoice(true);
           }}
           onSelectReceipt={() => {
-            setShowAddOptions(false);
             router.push("/fridge/add/receipt");
           }}
           onSelectBarcode={() => {
-            setShowAddOptions(false);
             router.push("/fridge/add/barcode");
           }}
           onSelectCookedDish={() => {
-            setShowAddOptions(false);
             setShowCookedDish(true);
           }}
         />

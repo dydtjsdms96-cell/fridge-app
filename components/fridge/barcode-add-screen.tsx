@@ -15,6 +15,7 @@ import {
   type ManualAddPayload,
 } from "@/components/fridge/manual-add-sheet";
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
+import { Toast, useToast } from "@/components/ui/toast";
 
 const SCANNER_ID = "barcode-scanner-region";
 
@@ -53,7 +54,7 @@ export function BarcodeAddScreen() {
   const [error, setError] = useState<string | null>(null);
   const [cameraUnavailable, setCameraUnavailable] = useState(false);
   const [prefill, setPrefill] = useState<FormPrefill | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
+  const { message, showToast } = useToast(2800);
 
   const stopScanner = useCallback(async () => {
     const scanner = scannerRef.current;
@@ -71,9 +72,8 @@ export function BarcodeAddScreen() {
   }, []);
 
   const openManualFallback = useCallback(
-    (message: string) => {
-      setToast(message);
-      window.setTimeout(() => setToast(null), 2800);
+    (msg: string) => {
+      showToast(msg);
       setPrefill({
         barcode: null,
         name: "",
@@ -82,7 +82,7 @@ export function BarcodeAddScreen() {
         fromLookup: false,
       });
     },
-    [],
+    [showToast],
   );
 
   const handleDecoded = useCallback(
@@ -314,13 +314,7 @@ export function BarcodeAddScreen() {
         </button>
       </div>
 
-      {toast && (
-        <div className="pointer-events-none absolute inset-x-5 top-20 z-[60] flex justify-center">
-          <div className="rounded-full bg-foreground/90 px-4 py-2.5 text-[13px] font-medium text-white shadow-lg">
-            {toast}
-          </div>
-        </div>
-      )}
+      <Toast message={message} position="top" />
 
       {prefill && (
         <ManualAddSheet

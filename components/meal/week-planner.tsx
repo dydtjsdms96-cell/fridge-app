@@ -24,6 +24,7 @@ import {
   MealPlacementSheet,
   type SlotOccupant,
 } from "@/components/meal/meal-placement-sheet";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type { MealPlanEntry };
 
@@ -115,9 +116,9 @@ export function WeekPlanner({
     if (error) {
       console.error("[meal_plan] place error:", error);
       setPlaceError(error);
-      return;
+      throw new Error(error);
     }
-    if (!data) return;
+    if (!data) throw new Error("배치에 실패했어요");
 
     setPlanMap((prev) => {
       const key = `${planDate}|${meal}`;
@@ -128,7 +129,6 @@ export function WeekPlanner({
       onPlansChange?.(flattenPlans(next));
       return next;
     });
-    setPlacing(null);
   }
 
   async function removeEntry(entry: MealPlanEntry) {
@@ -380,9 +380,11 @@ export function WeekPlanner({
                 />
               ))}
               {ready.length === 0 && (
-                <p className="col-span-2 py-2 text-[12px] text-muted-foreground sm:col-span-3 lg:col-span-4">
-                  지금 바로 만들 수 있는 요리가 없어요
-                </p>
+                <EmptyState
+                  variant="section"
+                  className="py-2"
+                  title="지금 바로 만들 수 있는 요리가 없어요"
+                />
               )}
             </div>
           </div>
@@ -409,9 +411,11 @@ export function WeekPlanner({
                 />
               ))}
               {plusOne.length === 0 && (
-                <p className="col-span-2 py-2 text-[12px] text-muted-foreground sm:col-span-3 lg:col-span-4">
-                  +1 후보 요리가 없어요
-                </p>
+                <EmptyState
+                  variant="section"
+                  className="py-2"
+                  title="+1 후보 요리가 없어요"
+                />
               )}
             </div>
           </div>

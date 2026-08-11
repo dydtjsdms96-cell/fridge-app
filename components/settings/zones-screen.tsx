@@ -6,6 +6,7 @@ import { ChevronLeft, Plus, Snowflake, Thermometer, Box } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { StorageZone, StorageZoneRow } from "@/types/database";
 import { SwipeDeleteRow } from "@/components/settings/swipe-delete-row";
+import { Toast, useToast } from "@/components/ui/toast";
 
 const BASE_ZONES: StorageZone[] = ["냉장", "냉동", "실온", "김치냉장고"];
 
@@ -30,7 +31,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
   const [addingFor, setAddingFor] = useState<StorageZone | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { message, showToast } = useToast(2000);
 
   const grouped = useMemo(() => {
     const map = Object.fromEntries(
@@ -43,8 +44,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
   }, [items]);
 
   function notify(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2000);
+    showToast(message);
   }
 
   async function addLabel(baseZone: StorageZone) {
@@ -198,13 +198,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
         })}
       </div>
 
-      {toast && (
-        <div className="pointer-events-none absolute inset-x-5 bottom-6 z-20">
-          <div className="rounded-2xl bg-foreground/90 px-4 py-3 text-center text-[12px] font-semibold text-background shadow-lg">
-            {toast}
-          </div>
-        </div>
-      )}
+      <Toast message={message} />
     </div>
   );
 }

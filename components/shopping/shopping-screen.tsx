@@ -7,6 +7,7 @@ import { formatIngredientAmount } from "@/lib/format-amount";
 import type { ShoppingList, ShoppingListSource } from "@/types/database";
 import { AddShoppingSheet } from "@/components/shopping/add-shopping-sheet";
 import { SwipeDeleteRow } from "@/components/settings/swipe-delete-row";
+import { EmptyState } from "@/components/ui/empty-state";
 
 const SOURCE_LABEL: Record<ShoppingListSource, string> = {
   자동_식단: "식단",
@@ -164,9 +165,10 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
             />
           ))}
           {pending.length === 0 && (
-            <p className="col-span-2 py-6 text-center text-[13px] text-muted-foreground sm:col-span-3 lg:col-span-4">
-              살 게 없어요. +로 추가해 보세요
-            </p>
+            <EmptyState
+              variant="section"
+              title="살 게 없어요. +로 추가해 보세요"
+            />
           )}
         </div>
 

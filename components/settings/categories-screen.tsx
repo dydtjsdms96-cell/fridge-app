@@ -6,6 +6,8 @@ import { ChevronLeft, Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase";
 import type { Category } from "@/types/database";
 import { SwipeDeleteRow } from "@/components/settings/swipe-delete-row";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Toast, useToast } from "@/components/ui/toast";
 
 const EMOJI_OPTIONS = [
   "🥬",
@@ -38,11 +40,10 @@ export function CategoriesScreen({
   const [draftName, setDraftName] = useState("");
   const [draftIcon, setDraftIcon] = useState(EMOJI_OPTIONS[0]);
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
+  const { message, showToast } = useToast(2000);
 
   function notify(message: string) {
-    setToast(message);
-    window.setTimeout(() => setToast(null), 2000);
+    showToast(message);
   }
 
   async function addCategory() {
@@ -152,14 +153,12 @@ export function CategoriesScreen({
         </p>
 
         {items.length === 0 && !showAdd && (
-          <div className="rounded-2xl border border-dashed border-border bg-card/60 px-4 py-10 text-center">
-            <p className="text-[13px] font-medium text-foreground">
-              아직 카테고리가 없어요
-            </p>
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              오른쪽 위 + 로 채소·육류 등을 추가해 보세요
-            </p>
-          </div>
+          <EmptyState
+            variant="section"
+            className="rounded-2xl border border-dashed border-border bg-card/60"
+            title="아직 카테고리가 없어요"
+            description="오른쪽 위 + 로 채소·육류 등을 추가해 보세요"
+          />
         )}
 
         {items.map((item) =>
@@ -211,13 +210,7 @@ export function CategoriesScreen({
         )}
       </div>
 
-      {toast && (
-        <div className="pointer-events-none absolute inset-x-5 bottom-6 z-20">
-          <div className="rounded-2xl bg-foreground/90 px-4 py-3 text-center text-[12px] font-semibold text-background shadow-lg">
-            {toast}
-          </div>
-        </div>
-      )}
+      <Toast message={message} />
     </div>
   );
 }
