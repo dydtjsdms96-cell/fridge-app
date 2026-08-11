@@ -34,14 +34,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div
-      className="flex min-h-screen items-center justify-center p-6"
-      style={{
-        background:
-          "radial-gradient(ellipse at 30% 40%, #C8D9CF 0%, #BDB9B0 50%, #A8A49C 100%)",
-      }}
-    >
-      <div className="w-full max-w-[390px] rounded-[32px] border border-border bg-background p-8 shadow-[0_50px_100px_rgba(0,0,0,0.25)]">
+    <div className="flex min-h-dvh w-full items-center justify-center bg-background px-5 py-8">
+      <div className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-[0_12px_40px_rgba(0,0,0,0.08)]">
         <p className="text-[11px] font-medium tracking-[0.275px] text-muted-foreground uppercase">
           Fridge App
         </p>

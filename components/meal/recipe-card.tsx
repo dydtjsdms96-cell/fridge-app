@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Clock } from "lucide-react";
 import type { RecipeMatch } from "@/lib/recipe-match";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import { FoodIcon } from "@/components/ui/food-icon";
 import type { RecipeDifficulty } from "@/types/database";
 
 const DIFFICULTY_COLOR: Record<RecipeDifficulty, string> = {
@@ -23,21 +23,21 @@ export function RecipeCard({ match, onAdd }: RecipeCardProps) {
   const missing = ingredients.filter((i) => !i.owned);
   const pct = Math.round(fulfillment * 100);
   const difficulty = recipe.difficulty;
-  const emoji = getFoodEmoji(recipe.title, null);
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
       <Link href={`/meal/${recipe.id}`} className="block">
         <div className="relative h-[144px] overflow-hidden bg-muted">
           {recipe.image_url ? (
+            // eslint-disable-next-line @next/next/no-img-element
             <img
               src={recipe.image_url}
               alt={recipe.title}
               className="size-full object-cover"
             />
           ) : (
-            <div className="flex size-full items-center justify-center text-5xl opacity-70">
-              {emoji}
+            <div className="flex size-full items-center justify-center opacity-90">
+              <FoodIcon name={recipe.title} size={64} />
             </div>
           )}
           {group === "냉털" && (

@@ -31,4 +31,11 @@ export const EXPIRY_STYLES: Record<
     dot: "var(--status-urgent-dot)",
     badge: "bg-status-urgent-bg text-status-urgent",
   },
+  unset: {
+    bg: "bg-muted",
+    text: "text-muted-foreground",
+    border: "border-border",
+    dot: "var(--muted-foreground)",
+    badge: "bg-muted text-muted-foreground",
+  },
 };

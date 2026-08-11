@@ -1,7 +1,7 @@
 import { Box, Snowflake, Thermometer } from "lucide-react";
 import type { FridgeItem } from "@/types/database";
 import { formatDDay, getDDay, getExpiryStatus } from "@/lib/dday";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import { FoodIcon } from "@/components/ui/food-icon";
 import { formatQuantity } from "@/lib/quantity";
 import { EXPIRY_STYLES } from "@/components/home/expiry-styles";
 
@@ -21,6 +21,7 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
   const dDay = getDDay(item.expires_at);
   const status = getExpiryStatus(dDay);
   const s = EXPIRY_STYLES[status];
+  const label = formatDDay(dDay);
 
   return (
     <button
@@ -29,9 +30,7 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
       className="flex flex-col gap-2.5 rounded-2xl border border-border bg-white p-3.5 text-left shadow-[0_2px_6px_rgba(0,0,0,0.06)] transition-transform active:scale-[0.97]"
     >
       <div className="flex items-start justify-between">
-        <span className="text-[28px] leading-7">
-          {getFoodEmoji(item.name, item.category)}
-        </span>
+        <FoodIcon name={item.name} category={item.category} size={32} />
         <span
           className={`flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-semibold leading-[13.5px] ${s.badge}`}
         >
@@ -47,13 +46,21 @@ export function ItemCard({ item, onClick }: ItemCardProps) {
           {formatQuantity(item.quantity, item.unit)}
         </p>
       </div>
-      <div className={`flex items-center gap-1.5 self-start rounded-2xl px-2 py-1 ${s.bg}`}>
+      <div
+        className={`flex max-w-full items-center gap-1.5 self-start rounded-2xl px-2 py-1 ${s.bg}`}
+      >
         <span
           className="size-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: s.dot }}
         />
-        <span className={`font-mono text-[14px] font-medium leading-5 ${s.text}`}>
-          {formatDDay(dDay)}
+        <span
+          className={`${
+            dDay === null
+              ? "text-[10px] font-semibold leading-4"
+              : "font-mono text-[14px] font-medium leading-5"
+          } ${s.text}`}
+        >
+          {label}
         </span>
       </div>
     </button>

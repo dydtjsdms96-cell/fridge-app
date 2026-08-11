@@ -8,7 +8,7 @@ import {
   formatIngredientAmountForMode,
   type AmountUnitMode,
 } from "@/lib/format-amount";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import { FoodIcon } from "@/components/ui/food-icon";
 import {
   normalizeBaseServings,
   scaleRecipeIngredients,
@@ -79,7 +79,6 @@ export function RecipeDetailScreen({
   const doneCount = checkedSteps.size;
   const totalSteps = steps.length;
   const allDone = totalSteps > 0 && doneCount === totalSteps;
-  const emoji = getFoodEmoji(recipe.title, null);
   const difficulty = recipe.difficulty;
 
   function setServingsClamped(next: number) {
@@ -152,8 +151,8 @@ export function RecipeDetailScreen({
               className="size-full object-cover"
             />
           ) : (
-            <div className="flex size-full items-center justify-center text-6xl opacity-70">
-              {emoji}
+            <div className="flex size-full items-center justify-center opacity-90">
+              <FoodIcon name={recipe.title} size={72} />
             </div>
           )}
           <div

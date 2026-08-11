@@ -22,7 +22,7 @@ type BottomTabBarProps = {
 
 export function BottomTabBar({ activeTab }: BottomTabBarProps) {
   return (
-    <nav className="flex h-[82px] w-full shrink-0 items-start border-t border-border bg-card px-1 pt-3">
+    <nav className="flex h-[82px] w-full shrink-0 items-start border-t border-border bg-card px-1 pt-3 pb-[env(safe-area-inset-bottom)]">
       {TABS.map(({ id, label, icon: Icon, href }) => {
         const active = activeTab === id;
         const className = "flex flex-1 flex-col items-center gap-[5px]";

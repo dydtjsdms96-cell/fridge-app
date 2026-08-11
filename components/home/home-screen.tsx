@@ -6,14 +6,13 @@ import {
   getExpiryStatus,
   type ExpiryStatus,
 } from "@/lib/dday";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import { FoodIcon } from "@/components/ui/food-icon";
 import { EXPIRY_STYLES } from "@/components/home/expiry-styles";
 import { HomeEmptyState } from "@/components/home/home-empty-state";
 
 type ItemWithDDay = FridgeItem & {
   dDay: number | null;
   statusKey: ExpiryStatus;
-  emoji: string;
   quantityLabel: string;
 };
 
@@ -24,7 +23,6 @@ function enrichItems(items: FridgeItem[]): ItemWithDDay[] {
       ...item,
       dDay,
       statusKey: getExpiryStatus(dDay),
-      emoji: getFoodEmoji(item.name, item.category),
       quantityLabel: `${item.quantity}${item.unit ?? ""}`,
     };
   });
@@ -36,7 +34,7 @@ function UrgentCard({ item }: { item: ItemWithDDay }) {
     <div
       className={`flex w-[130px] shrink-0 flex-col gap-2 rounded-2xl border p-3.5 ${s.bg} ${s.border}`}
     >
-      <span className="text-2xl leading-8">{item.emoji}</span>
+      <FoodIcon name={item.name} category={item.category} size={28} />
       <div>
         <p className="text-[13px] font-semibold leading-[16.25px] text-foreground">
           {item.name}
@@ -45,7 +43,13 @@ function UrgentCard({ item }: { item: ItemWithDDay }) {
           {item.quantityLabel}
         </p>
       </div>
-      <span className={`font-mono text-[20px] font-medium leading-7 ${s.text}`}>
+      <span
+        className={`${
+          item.dDay === null
+            ? "text-[10px] font-semibold leading-4"
+            : "font-mono text-[20px] font-medium leading-7"
+        } ${s.text}`}
+      >
         {formatDDay(item.dDay)}
       </span>
     </div>
@@ -230,7 +234,12 @@ export function HomeScreen({ items, todayLabel }: HomeScreenProps) {
                   idx < recent.length - 1 ? "border-b border-border" : ""
                 }`}
               >
-                <span className="shrink-0 text-xl leading-7">{item.emoji}</span>
+                <FoodIcon
+                  name={item.name}
+                  category={item.category}
+                  size={24}
+                  className="shrink-0"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[13px] font-semibold leading-[19.5px] text-foreground">
                     {item.name}
@@ -239,13 +248,17 @@ export function HomeScreen({ items, todayLabel }: HomeScreenProps) {
                     {item.quantityLabel} · {item.zone}
                   </p>
                 </div>
-                <div className="flex shrink-0 items-center gap-1">
+                <div className="flex max-w-[7.5rem] shrink-0 items-center gap-1">
                   <span
-                    className="size-1.5 rounded-full"
+                    className="size-1.5 shrink-0 rounded-full"
                     style={{ backgroundColor: s.dot }}
                   />
                   <span
-                    className={`font-mono text-[13px] font-medium leading-[19.5px] ${s.text}`}
+                    className={`truncate ${
+                      item.dDay === null
+                        ? "text-[10px] font-semibold"
+                        : "font-mono text-[13px] font-medium"
+                    } leading-[19.5px] ${s.text}`}
                   >
                     {formatDDay(item.dDay)}
                   </span>

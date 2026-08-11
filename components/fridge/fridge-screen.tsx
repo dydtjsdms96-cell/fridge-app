@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Search } from "lucide-react";
 import type { FridgeItem, StorageZone } from "@/types/database";
+import { defaultExpiresAt } from "@/lib/dday";
 import { createClient } from "@/lib/supabase";
 import { ItemCard } from "@/components/fridge/item-card";
 import {
@@ -137,6 +138,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
     unit: string | null;
     zone: StorageZone;
     category: string | null;
+    expires_at: string;
   }) {
     const supabase = createClient();
     const {
@@ -153,6 +155,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
         unit: payload.unit,
         zone: payload.zone,
         category: payload.category,
+        expires_at: payload.expires_at,
         status: "보유",
         input_method: "수동",
         purchased_at: new Date().toISOString().slice(0, 10),
@@ -189,6 +192,7 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
       unit: payload.unit,
       zone: payload.zone,
       category: payload.category,
+      expires_at: defaultExpiresAt(payload.name, payload.category),
       status: "보유" as const,
       input_method: "음성" as const,
       purchased_at: new Date().toISOString().slice(0, 10),
@@ -203,6 +207,30 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
       setItems((prev) => [...(data as FridgeItem[]), ...prev]);
       router.refresh();
     }
+  }
+
+  async function handleSaveExpires(expiresAt: string) {
+    if (!selectedItem) return;
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("fridge_items")
+      .update({ expires_at: expiresAt })
+      .eq("id", selectedItem.id);
+    if (error) {
+      console.error("[fridge] expires_at error:", error.message);
+      return;
+    }
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === selectedItem.id
+          ? { ...item, expires_at: expiresAt }
+          : item,
+      ),
+    );
+    setSelectedItem((prev) =>
+      prev ? { ...prev, expires_at: expiresAt } : prev,
+    );
+    router.refresh();
   }
 
   return (
@@ -301,9 +329,11 @@ export function FridgeScreen({ initialItems }: FridgeScreenProps) {
 
       {selectedItem && (
         <ItemDetailSheet
+          key={selectedItem.id}
           item={selectedItem}
           onClose={() => setSelectedItem(null)}
           onSavePartial={handleSavePartial}
+          onSaveExpires={handleSaveExpires}
           onRemove={handleRemove}
         />
       )}

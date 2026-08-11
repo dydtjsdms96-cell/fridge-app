@@ -61,21 +61,22 @@ export function MealScreen({
       week.map((w) => [w.day, w.date]),
     ) as Record<WeekDay, string>;
     const out: Partial<
-      Record<WeekDay, Partial<Record<MealSlot, SlotOccupant>>>
+      Record<WeekDay, Partial<Record<MealSlot, SlotOccupant[]>>>
     > = {};
     for (const day of WEEK_DAYS) {
       out[day] = {};
       for (const meal of MEAL_SLOTS) {
-        const entry = plans.find(
-          (p) =>
-            p.plan_date === dateByDay[day] && p.meal_type === meal && p.recipes,
-        );
-        if (entry?.recipes) {
-          out[day]![meal] = {
-            recipeId: entry.recipes.id,
-            title: entry.recipes.title,
-          };
-        }
+        out[day]![meal] = plans
+          .filter(
+            (p) =>
+              p.plan_date === dateByDay[day] &&
+              p.meal_type === meal &&
+              (p.recipes || p.recipe_id),
+          )
+          .map((p) => ({
+            recipeId: p.recipes?.id ?? p.recipe_id!,
+            title: p.recipes?.title ?? p.label ?? "요리",
+          }));
       }
     }
     return out;
@@ -180,19 +181,11 @@ export function MealScreen({
             });
             if (error) {
               console.error("[meal_plan] place error:", error);
+              window.alert(error);
               return;
             }
             if (data) {
-              setPlans((prev) => {
-                const filteredPlans = prev.filter(
-                  (p) =>
-                    !(
-                      p.plan_date === data.plan_date &&
-                      p.meal_type === data.meal_type
-                    ),
-                );
-                return [...filteredPlans, data];
-              });
+              setPlans((prev) => [...prev, data]);
             }
             setPlacing(null);
           }}

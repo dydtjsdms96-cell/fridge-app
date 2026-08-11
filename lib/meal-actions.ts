@@ -18,13 +18,18 @@ export async function placeMealRecipe(params: {
 
   const supabase = createClient();
 
-  // One recipe per slot: clear existing rows for this slot first
-  await supabase
+  const { data: existingSame } = await supabase
     .from("meal_plan")
-    .delete()
+    .select("id")
     .eq("user_id", userId)
     .eq("plan_date", planDate)
-    .eq("meal_type", meal);
+    .eq("meal_type", meal)
+    .eq("recipe_id", recipeId)
+    .maybeSingle();
+
+  if (existingSame) {
+    return { data: null, error: "이미 추가되어 있어요" };
+  }
 
   const { data, error } = await supabase
     .from("meal_plan")

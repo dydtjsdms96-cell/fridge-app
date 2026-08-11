@@ -11,8 +11,14 @@ import {
   Trash2,
 } from "lucide-react";
 import type { FridgeItem } from "@/types/database";
-import { formatDDay, getDDay, getExpiryStatus } from "@/lib/dday";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import {
+  defaultExpiresAt,
+  formatDDay,
+  getDDay,
+  getExpiryStatus,
+  ymdInAppTz,
+} from "@/lib/dday";
+import { FoodIcon } from "@/components/ui/food-icon";
 import { formatQuantity } from "@/lib/quantity";
 import { EXPIRY_STYLES } from "@/components/home/expiry-styles";
 
@@ -97,6 +103,7 @@ type ItemDetailSheetProps = {
   item: FridgeItem;
   onClose: () => void;
   onSavePartial: (newQuantity: number) => void;
+  onSaveExpires: (expiresAt: string) => void | Promise<void>;
   onRemove: (reason: ConfirmMode) => void;
 };
 
@@ -104,6 +111,7 @@ export function ItemDetailSheet({
   item,
   onClose,
   onSavePartial,
+  onSaveExpires,
   onRemove,
 }: ItemDetailSheetProps) {
   const dDay = getDDay(item.expires_at);
@@ -111,6 +119,13 @@ export function ItemDetailSheet({
   const [usagePct, setUsagePct] = useState(0);
   const [memo, setMemo] = useState("");
   const [confirmMode, setConfirmMode] = useState<ConfirmMode | null>(null);
+  const [expiresAt, setExpiresAt] = useState(
+    () => item.expires_at?.slice(0, 10) ?? defaultExpiresAt(item.name, item.category),
+  );
+  const [savingExpires, setSavingExpires] = useState(false);
+  const today = ymdInAppTz();
+  const expiresDirty =
+    (item.expires_at?.slice(0, 10) ?? "") !== expiresAt;
 
   const remainingValue = Math.max(
     0,
@@ -154,8 +169,8 @@ export function ItemDetailSheet({
 
           <div className="px-5 pt-3 pb-4">
             <div className="flex items-start gap-4">
-              <div className="flex size-[68px] shrink-0 items-center justify-center rounded-2xl border border-border bg-background text-[38px]">
-                {getFoodEmoji(item.name, item.category)}
+              <div className="flex size-[68px] shrink-0 items-center justify-center rounded-2xl border border-border bg-background">
+                <FoodIcon name={item.name} category={item.category} size={40} />
               </div>
               <div className="min-w-0 flex-1">
                 <h2 className="text-[20px] font-bold leading-tight text-foreground">
@@ -190,6 +205,45 @@ export function ItemDetailSheet({
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="mx-5 h-px bg-border" />
+
+          <div className="px-5 py-4">
+            <p className="mb-2.5 text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+              유통기한
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                required
+                type="date"
+                value={expiresAt}
+                min={today}
+                onChange={(e) => setExpiresAt(e.target.value)}
+                className="min-w-0 flex-1 rounded-xl border border-border bg-muted/40 px-3.5 py-3 text-[14px] outline-none focus:border-primary"
+              />
+              <button
+                type="button"
+                disabled={!expiresDirty || !expiresAt || savingExpires}
+                onClick={async () => {
+                  if (!expiresAt) return;
+                  setSavingExpires(true);
+                  try {
+                    await onSaveExpires(expiresAt);
+                  } finally {
+                    setSavingExpires(false);
+                  }
+                }}
+                className="shrink-0 rounded-xl bg-primary px-3.5 py-3 text-[12px] font-bold text-primary-foreground disabled:opacity-50"
+              >
+                {savingExpires ? "저장…" : "저장"}
+              </button>
+            </div>
+            {!item.expires_at && (
+              <p className="mt-1.5 text-[10px] text-status-warn">
+                유통기한이 없어 기본값으로 채워 두었어요. 확인하고 저장해 주세요.
+              </p>
+            )}
           </div>
 
           <div className="mx-5 h-px bg-border" />

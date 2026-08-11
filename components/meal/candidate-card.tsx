@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { Clock, Plus } from "lucide-react";
 import type { RecipeMatch } from "@/lib/recipe-match";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import { FoodIcon } from "@/components/ui/food-icon";
 
 type CandidateCardProps = {
   match: RecipeMatch;
@@ -13,7 +13,6 @@ type CandidateCardProps = {
 export function CandidateCard({ match, onAdd }: CandidateCardProps) {
   const { recipe, ingredients, ownedCount, totalCount } = match;
   const missing = ingredients.filter((i) => !i.owned);
-  const emoji = getFoodEmoji(recipe.title, null);
 
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_6px_rgba(0,0,0,0.04)]">
@@ -21,9 +20,7 @@ export function CandidateCard({ match, onAdd }: CandidateCardProps) {
         href={`/meal/${recipe.id}`}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
       >
-        <span className="shrink-0 text-[22px]" aria-hidden>
-          {emoji}
-        </span>
+        <FoodIcon name={recipe.title} size={26} className="shrink-0" />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[13px] font-semibold text-foreground">
             {recipe.title}

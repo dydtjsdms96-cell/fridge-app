@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useMemo, useState } from "react";
 import type { StorageZone } from "@/types/database";
+import { defaultExpiresAt, ymdInAppTz } from "@/lib/dday";
 
 const ZONES: StorageZone[] = ["냉장", "냉동", "실온", "김치냉장고"];
 
@@ -13,29 +14,48 @@ type ManualAddSheetProps = {
     unit: string | null;
     zone: StorageZone;
     category: string | null;
+    expires_at: string;
   }) => Promise<void>;
 };
 
 export function ManualAddSheet({ onClose, onSubmit }: ManualAddSheetProps) {
+  const today = useMemo(() => ymdInAppTz(), []);
   const [name, setName] = useState("");
   const [quantity, setQuantity] = useState("1");
   const [unit, setUnit] = useState("개");
   const [zone, setZone] = useState<StorageZone>("냉장");
   const [category, setCategory] = useState("");
+  const [expiresAt, setExpiresAt] = useState(() =>
+    defaultExpiresAt("", null, today),
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function refreshDefaultExpiry(nextName: string, nextCategory: string) {
+    setExpiresAt(defaultExpiresAt(nextName, nextCategory || null, today));
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setError("재료명을 입력해 주세요");
+      return;
+    }
+    if (!expiresAt) {
+      setError("유통기한을 입력해 주세요");
+      return;
+    }
     setLoading(true);
     try {
       await onSubmit({
-        name: name.trim(),
+        name: trimmedName,
         quantity: Number(quantity) || 1,
         unit: unit.trim() || null,
         zone,
         category: category.trim() || null,
+        expires_at: expiresAt,
       });
       onClose();
     } catch (err) {
@@ -69,7 +89,11 @@ export function ManualAddSheet({ onClose, onSubmit }: ManualAddSheetProps) {
             <input
               required
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setName(v);
+                refreshDefaultExpiry(v, category);
+              }}
               placeholder="예: 계란"
               className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-[14px] outline-none focus:border-primary"
             />
@@ -131,10 +155,31 @@ export function ManualAddSheet({ onClose, onSubmit }: ManualAddSheetProps) {
             </span>
             <input
               value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setCategory(v);
+                refreshDefaultExpiry(name, v);
+              }}
               placeholder="예: 채소"
               className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-[14px] outline-none focus:border-primary"
             />
+          </label>
+
+          <label className="block">
+            <span className="mb-1.5 block text-[11px] font-semibold text-muted-foreground">
+              유통기한
+            </span>
+            <input
+              required
+              type="date"
+              value={expiresAt}
+              min={today}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              className="w-full rounded-xl border border-border bg-background px-3.5 py-3 text-[14px] outline-none focus:border-primary"
+            />
+            <p className="mt-1 text-[10px] text-muted-foreground">
+              재료명에 맞춰 기본값이 채워져요. 필요하면 수정하세요.
+            </p>
           </label>
 
           {error && (

@@ -7,7 +7,7 @@ import type { RecipeMatch, RecipeWithIngredients } from "@/lib/recipe-match";
 import { ingredientNamesMatch } from "@/lib/recipe-match";
 import { isMildSeasoning } from "@/lib/servings-scale";
 import { placeMealRecipe } from "@/lib/meal-actions";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import { FoodIcon } from "@/components/ui/food-icon";
 import { createClient } from "@/lib/supabase";
 import {
   getWeekDayDates,
@@ -36,14 +36,21 @@ type WeekPlannerProps = {
   onPlansChange?: (plans: MealPlanEntry[]) => void;
 };
 
-type PlanMap = Record<string, MealPlanEntry | null>;
+/** plan_date|meal_type → entries in that slot */
+type PlanMap = Record<string, MealPlanEntry[]>;
 
 function buildPlanMap(plans: MealPlanEntry[]): PlanMap {
   const map: PlanMap = {};
   for (const p of plans) {
-    map[`${p.plan_date}|${p.meal_type}`] = p;
+    const key = `${p.plan_date}|${p.meal_type}`;
+    if (!map[key]) map[key] = [];
+    map[key].push(p);
   }
   return map;
+}
+
+function flattenPlans(map: PlanMap): MealPlanEntry[] {
+  return Object.values(map).flat();
 }
 
 export function WeekPlanner({
@@ -68,23 +75,24 @@ export function WeekPlanner({
   const [placing, setPlacing] = useState<RecipeMatch | null>(null);
   const [shoppingBusy, setShoppingBusy] = useState(false);
   const [shoppingMsg, setShoppingMsg] = useState<string | null>(null);
+  const [placeError, setPlaceError] = useState<string | null>(null);
 
   const selectedDate = dateByDay[selectedDay];
 
   const occupancy = useMemo(() => {
     const out: Partial<
-      Record<WeekDay, Partial<Record<MealSlot, SlotOccupant>>>
+      Record<WeekDay, Partial<Record<MealSlot, SlotOccupant[]>>>
     > = {};
     for (const day of WEEK_DAYS) {
       out[day] = {};
       for (const meal of MEAL_SLOTS) {
-        const entry = planMap[`${dateByDay[day]}|${meal}`];
-        if (entry?.recipes) {
-          out[day]![meal] = {
-            recipeId: entry.recipes.id,
-            title: entry.recipes.title,
-          };
-        }
+        const entries = planMap[`${dateByDay[day]}|${meal}`] ?? [];
+        out[day]![meal] = entries
+          .filter((e) => e.recipes || e.recipe_id)
+          .map((e) => ({
+            recipeId: e.recipes?.id ?? e.recipe_id!,
+            title: e.recipes?.title ?? e.label ?? "요리",
+          }));
       }
     }
     return out;
@@ -95,6 +103,7 @@ export function WeekPlanner({
 
   async function placeRecipe(day: WeekDay, meal: MealSlot) {
     if (!placing) return;
+    setPlaceError(null);
     const planDate = dateByDay[day];
     const { data, error } = await placeMealRecipe({
       userId,
@@ -105,36 +114,39 @@ export function WeekPlanner({
     });
     if (error) {
       console.error("[meal_plan] place error:", error);
+      setPlaceError(error);
       return;
     }
     if (!data) return;
 
     setPlanMap((prev) => {
-      const next = { ...prev, [`${planDate}|${meal}`]: data };
-      onPlansChange?.(Object.values(next).filter(Boolean) as MealPlanEntry[]);
+      const key = `${planDate}|${meal}`;
+      const next = {
+        ...prev,
+        [key]: [...(prev[key] ?? []), data],
+      };
+      onPlansChange?.(flattenPlans(next));
       return next;
     });
     setPlacing(null);
   }
 
-  async function clearSlot(meal: MealSlot) {
-    const key = `${selectedDate}|${meal}`;
-    const existing = planMap[key];
-    if (!existing) return;
-
+  async function removeEntry(entry: MealPlanEntry) {
+    const key = `${entry.plan_date}|${entry.meal_type}`;
     const supabase = createClient();
     const { error } = await supabase
       .from("meal_plan")
       .delete()
-      .eq("id", existing.id);
+      .eq("id", entry.id);
     if (error) {
       console.error("[meal_plan] clear error:", error.message);
       return;
     }
     setPlanMap((prev) => {
       const next = { ...prev };
-      delete next[key];
-      onPlansChange?.(Object.values(next).filter(Boolean) as MealPlanEntry[]);
+      next[key] = (prev[key] ?? []).filter((e) => e.id !== entry.id);
+      if (next[key].length === 0) delete next[key];
+      onPlansChange?.(flattenPlans(next));
       return next;
     });
   }
@@ -146,15 +158,17 @@ export function WeekPlanner({
     const supabase = createClient();
 
     try {
-      const placedRecipeIds = new Set<string>();
+      // Count every placement (same recipe in two slots → ingredients ×2)
+      const placedRecipeIds: string[] = [];
       for (const w of week) {
         for (const meal of MEAL_SLOTS) {
-          const entry = planMap[`${w.date}|${meal}`];
-          if (entry?.recipe_id) placedRecipeIds.add(entry.recipe_id);
+          for (const entry of planMap[`${w.date}|${meal}`] ?? []) {
+            if (entry.recipe_id) placedRecipeIds.push(entry.recipe_id);
+          }
         }
       }
 
-      if (placedRecipeIds.size === 0) {
+      if (placedRecipeIds.length === 0) {
         setShoppingMsg("이번 주에 배치된 요리가 없어요");
         return;
       }
@@ -162,8 +176,9 @@ export function WeekPlanner({
       type Need = { name: string; amount: number; unit: string | null };
       const needs = new Map<string, Need>();
 
-      for (const recipe of recipes) {
-        if (!placedRecipeIds.has(recipe.id)) continue;
+      for (const recipeId of placedRecipeIds) {
+        const recipe = recipes.find((r) => r.id === recipeId);
+        if (!recipe) continue;
         for (const ing of recipe.recipe_ingredients ?? []) {
           if (ing.is_optional === true) continue;
           if (isMildSeasoning(ing.ingredient_name)) continue;
@@ -259,7 +274,7 @@ export function WeekPlanner({
           {WEEK_DAYS.map((day) => {
             const on = selectedDay === day;
             const hasMeal = MEAL_SLOTS.some(
-              (m) => planMap[`${dateByDay[day]}|${m}`],
+              (m) => (planMap[`${dateByDay[day]}|${m}`]?.length ?? 0) > 0,
             );
             return (
               <button
@@ -289,38 +304,46 @@ export function WeekPlanner({
 
         <div className="mb-5 space-y-2">
           {MEAL_SLOTS.map((meal) => {
-            const placed = planMap[`${selectedDate}|${meal}`];
-            const title = placed?.recipes?.title ?? placed?.label;
+            const placed = planMap[`${selectedDate}|${meal}`] ?? [];
             return (
-              <div key={meal} className="flex items-center gap-2.5">
-                <span className="w-7 shrink-0 text-[11px] font-semibold text-muted-foreground">
+              <div key={meal} className="flex items-start gap-2.5">
+                <span className="mt-3 w-7 shrink-0 text-[11px] font-semibold text-muted-foreground">
                   {meal}
                 </span>
-                {placed && title ? (
-                  <div className="flex flex-1 items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-[0_1px_6px_rgba(0,0,0,0.05)]">
-                    <Link
-                      href={
-                        placed.recipe_id
-                          ? `/meal/${placed.recipe_id}`
-                          : "/meal"
-                      }
-                      className="flex min-w-0 flex-1 items-center gap-2"
-                    >
-                      <span className="text-[15px]" aria-hidden>
-                        {getFoodEmoji(title, null)}
-                      </span>
-                      <span className="truncate text-[13px] font-semibold text-foreground">
-                        {title}
-                      </span>
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => clearSlot(meal)}
-                      className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"
-                      aria-label="배치 제거"
-                    >
-                      <X size={14} />
-                    </button>
+                {placed.length > 0 ? (
+                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
+                    {placed.map((entry) => {
+                      const title =
+                        entry.recipes?.title ?? entry.label ?? "요리";
+                      return (
+                        <div
+                          key={entry.id}
+                          className="flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 shadow-[0_1px_6px_rgba(0,0,0,0.05)]"
+                        >
+                          <Link
+                            href={
+                              entry.recipe_id
+                                ? `/meal/${entry.recipe_id}`
+                                : "/meal"
+                            }
+                            className="flex min-w-0 flex-1 items-center gap-2"
+                          >
+                            <FoodIcon name={title} size={20} />
+                            <span className="truncate text-[13px] font-semibold text-foreground">
+                              {title}
+                            </span>
+                          </Link>
+                          <button
+                            type="button"
+                            onClick={() => removeEntry(entry)}
+                            className="flex size-7 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted"
+                            aria-label={`${title} 배치 제거`}
+                          >
+                            <X size={14} />
+                          </button>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-muted/50 py-3 text-muted-foreground">
@@ -348,7 +371,10 @@ export function WeekPlanner({
                 <CandidateCard
                   key={m.recipe.id}
                   match={m}
-                  onAdd={() => setPlacing(m)}
+                  onAdd={() => {
+                    setPlaceError(null);
+                    setPlacing(m);
+                  }}
                 />
               ))}
               {ready.length === 0 && (
@@ -374,7 +400,10 @@ export function WeekPlanner({
                 <CandidateCard
                   key={m.recipe.id}
                   match={m}
-                  onAdd={() => setPlacing(m)}
+                  onAdd={() => {
+                    setPlaceError(null);
+                    setPlacing(m);
+                  }}
                 />
               ))}
               {plusOne.length === 0 && (
@@ -409,8 +438,16 @@ export function WeekPlanner({
           defaultDay={selectedDay}
           occupancy={occupancy}
           onConfirm={placeRecipe}
-          onClose={() => setPlacing(null)}
+          onClose={() => {
+            setPlacing(null);
+            setPlaceError(null);
+          }}
         />
+      )}
+      {placeError && !placing && (
+        <div className="absolute inset-x-5 bottom-24 z-40 rounded-xl border border-status-warn-border bg-status-warn-bg px-3.5 py-2.5 text-center text-[11px] font-medium text-status-warn shadow-lg">
+          {placeError}
+        </div>
       )}
     </div>
   );

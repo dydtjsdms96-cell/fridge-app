@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Clock } from "lucide-react";
 import type { RecipeMatch } from "@/lib/recipe-match";
-import { getFoodEmoji } from "@/lib/food-emoji";
+import { FoodIcon } from "@/components/ui/food-icon";
 import {
   MEAL_SLOTS,
   WEEK_DAYS,
@@ -26,8 +26,8 @@ export type SlotOccupant = {
 type MealPlacementSheetProps = {
   match: RecipeMatch;
   defaultDay: WeekDay;
-  /** day → meal → placed recipe (if any) */
-  occupancy: Partial<Record<WeekDay, Partial<Record<MealSlot, SlotOccupant>>>>;
+  /** day → meal → placed recipes (0+) */
+  occupancy: Partial<Record<WeekDay, Partial<Record<MealSlot, SlotOccupant[]>>>>;
   onConfirm: (day: WeekDay, meal: MealSlot) => void | Promise<void>;
   onClose: () => void;
 };
@@ -42,14 +42,20 @@ export function MealPlacementSheet({
   const [day, setDay] = useState<WeekDay>(defaultDay);
   const [meal, setMeal] = useState<MealSlot>("점심");
   const [busy, setBusy] = useState(false);
+  const [dupMsg, setDupMsg] = useState<string | null>(null);
 
-  const occupied = occupancy[day]?.[meal] ?? null;
+  const occupants = occupancy[day]?.[meal] ?? [];
+  const alreadySame = occupants.some((o) => o.recipeId === match.recipe.id);
   const { recipe, group } = match;
   const difficulty = recipe.difficulty;
-  const emoji = getFoodEmoji(recipe.title, null);
 
   async function handleConfirm() {
     if (busy) return;
+    if (alreadySame) {
+      setDupMsg("이미 추가되어 있어요");
+      return;
+    }
+    setDupMsg(null);
     setBusy(true);
     try {
       await onConfirm(day, meal);
@@ -75,15 +81,16 @@ export function MealPlacementSheet({
 
         <div className="mb-5 px-5">
           <div className="flex items-center gap-3.5 rounded-2xl border border-border bg-muted/50 p-3">
-            <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-muted text-2xl">
+            <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-muted">
               {recipe.image_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={recipe.image_url}
                   alt=""
                   className="size-full object-cover"
                 />
               ) : (
-                emoji
+                <FoodIcon name={recipe.title} size={32} />
               )}
             </div>
             <div className="min-w-0 flex-1">
@@ -125,13 +132,18 @@ export function MealPlacementSheet({
           </p>
           <div className="flex gap-1.5">
             {WEEK_DAYS.map((d) => {
-              const hasMeal = MEAL_SLOTS.some((m) => occupancy[d]?.[m]);
+              const hasMeal = MEAL_SLOTS.some(
+                (m) => (occupancy[d]?.[m]?.length ?? 0) > 0,
+              );
               const active = day === d;
               return (
                 <button
                   key={d}
                   type="button"
-                  onClick={() => setDay(d)}
+                  onClick={() => {
+                    setDay(d);
+                    setDupMsg(null);
+                  }}
                   className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[12px] font-semibold transition-all ${
                     active
                       ? "bg-primary text-primary-foreground"
@@ -160,13 +172,16 @@ export function MealPlacementSheet({
           </p>
           <div className="flex gap-2">
             {MEAL_SLOTS.map((m) => {
-              const slotTaken = Boolean(occupancy[day]?.[m]);
+              const slotTaken = (occupancy[day]?.[m]?.length ?? 0) > 0;
               const active = meal === m;
               return (
                 <button
                   key={m}
                   type="button"
-                  onClick={() => setMeal(m)}
+                  onClick={() => {
+                    setMeal(m);
+                    setDupMsg(null);
+                  }}
                   className={`relative flex-1 rounded-xl py-2.5 text-[13px] font-semibold transition-all ${
                     active
                       ? "bg-primary text-primary-foreground"
@@ -188,22 +203,31 @@ export function MealPlacementSheet({
         </div>
 
         <div className="px-5 pb-8">
-          {occupied && (
+          {occupants.length > 0 && !alreadySame && (
+            <div className="mb-3 rounded-xl border border-border bg-muted/60 px-3.5 py-2.5">
+              <p className="text-[11px] leading-snug font-medium text-muted-foreground">
+                이 슬롯에 이미{" "}
+                <span className="font-semibold text-foreground">
+                  {occupants.map((o) => o.title).join(", ")}
+                </span>
+                이(가) 있어요. 함께 추가됩니다.
+              </p>
+            </div>
+          )}
+          {(alreadySame || dupMsg) && (
             <div className="mb-3 rounded-xl border border-status-warn-border bg-status-warn-bg px-3.5 py-2.5">
               <p className="text-[11px] leading-snug font-medium text-status-warn">
-                이미{" "}
-                <span className="font-bold text-[#7A5F0E]">{occupied.title}</span>
-                이(가) 배치되어 있어요. 교체할까요?
+                {dupMsg ?? "이미 추가되어 있어요"}
               </p>
             </div>
           )}
           <button
             type="button"
-            disabled={busy}
+            disabled={busy || alreadySame}
             onClick={handleConfirm}
             className="w-full rounded-2xl bg-primary py-3.5 text-[13px] font-bold text-primary-foreground shadow-[0_4px_16px_rgba(61,112,88,0.3)] transition-transform active:scale-[0.98] disabled:opacity-60"
           >
-            {occupied ? "교체하기" : "배치하기"}
+            배치하기
           </button>
         </div>
       </div>

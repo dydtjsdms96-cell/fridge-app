@@ -67,8 +67,7 @@ export function VoiceRegisterFlow({
       className="absolute inset-0 z-50 flex flex-col"
       style={{ background: "#0B1A10" }}
     >
-      <div className="flex h-12 shrink-0 items-center justify-between px-7 pt-4">
-        <span className="font-mono text-[13px] font-medium text-white/50">9:41</span>
+      <div className="flex h-12 shrink-0 items-center justify-end px-7 pt-4">
         <button
           type="button"
           onClick={onClose}

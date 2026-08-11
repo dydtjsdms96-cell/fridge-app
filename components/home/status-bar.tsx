@@ -1,3 +1,4 @@
+/** Fake iOS status bar for Figma/marketing mocks — use via PhoneFrame only. */
 export function StatusBar() {
   return (
     <div className="flex h-12 w-full shrink-0 items-center justify-between px-7 pt-4 pb-1">
