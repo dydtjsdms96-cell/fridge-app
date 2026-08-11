@@ -3,10 +3,7 @@
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
-  type UIEvent,
-  type WheelEvent,
 } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -30,7 +27,6 @@ import {
 import { createClient } from "@/lib/supabase";
 import {
   buildHomeZonePanels,
-  emptyTrailingSlots,
   type HomeZonePanel,
 } from "@/lib/home-zones";
 import {
@@ -370,34 +366,39 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
             </Link>
           </div>
 
-          <div className="flex flex-1 flex-col rounded-[24px] border border-border bg-[#f0efe9] p-4 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
-            {panels.upper.length > 0 && (
-              <div className="grid grid-cols-2 gap-3">
-                {panels.upper.map((panel, index) => (
-                  <ZoneCard
-                    key={panel.key}
-                    panel={panel}
-                    handleSide={index % 2 === 0 ? "right" : "left"}
-                    variant="door"
-                    onAdd={() => openAdd(panel.baseZone, panel.label)}
-                    onSelectItem={setSelectedItem}
-                    metaById={metaById}
-                  />
-                ))}
-              </div>
-            )}
-
-            {panels.freezer.map((panel) => (
-              <ZoneCard
-                key={panel.key}
-                panel={panel}
-                className={panels.upper.length > 0 ? "mt-3" : undefined}
-                variant="freezer"
-                onAdd={() => openAdd(panel.baseZone, panel.label)}
-                onSelectItem={setSelectedItem}
-                metaById={metaById}
-              />
-            ))}
+          <div className="flex flex-1 flex-col gap-3 rounded-[20px] border border-border bg-[#f0efe9] p-3 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
+            <ZoneSection
+              title="냉장"
+              panels={panels.fridge}
+              variant="fridge"
+              onAdd={openAdd}
+              onSelectItem={setSelectedItem}
+              metaById={metaById}
+            />
+            <ZoneSection
+              title="냉동"
+              panels={panels.freezer}
+              variant="freezer"
+              onAdd={openAdd}
+              onSelectItem={setSelectedItem}
+              metaById={metaById}
+            />
+            <ZoneSection
+              title="실온"
+              panels={panels.ambient}
+              variant="ambient"
+              onAdd={openAdd}
+              onSelectItem={setSelectedItem}
+              metaById={metaById}
+            />
+            <ZoneSection
+              title="김치냉장고"
+              panels={panels.kimchi}
+              variant="kimchi"
+              onAdd={openAdd}
+              onSelectItem={setSelectedItem}
+              metaById={metaById}
+            />
           </div>
         </div>
       </div>
@@ -474,124 +475,171 @@ export function HomeScreen({ items: initialItems, zones }: HomeScreenProps) {
   );
 }
 
-/** Keep nested zone scroll from chaining into the page scroll. */
-function useIsolatedScroll() {
-  const ref = useRef<HTMLDivElement>(null);
+type ZoneVariant = "fridge" | "freezer" | "ambient" | "kimchi";
 
-  function onWheel(e: WheelEvent<HTMLDivElement>) {
-    const el = ref.current;
-    if (!el) return;
-    const { scrollTop, scrollHeight, clientHeight } = el;
-    const canScroll = scrollHeight > clientHeight + 1;
-    if (!canScroll) return;
-
-    const atTop = scrollTop <= 0;
-    const atBottom = scrollTop + clientHeight >= scrollHeight - 1;
-    if ((e.deltaY < 0 && atTop) || (e.deltaY > 0 && atBottom)) {
-      // allow page scroll only at edges
-      return;
-    }
-    e.stopPropagation();
+const ZONE_THEME: Record<
+  ZoneVariant,
+  {
+    card: string;
+    title: string;
+    empty: string;
+    add: string;
+    rowHover: string;
+    itemText: string;
+    accent?: string;
   }
+> = {
+  fridge: {
+    card: "border-border bg-white",
+    title: "text-foreground/70",
+    empty: "text-muted-foreground",
+    add: "border-[#e0ddd4] text-muted-foreground",
+    rowHover: "hover:bg-[#f5f3ee]",
+    itemText: "text-foreground",
+  },
+  freezer: {
+    card: "border-[rgba(184,212,232,0.55)] bg-[#e8f4ff]",
+    title: "text-[#2563a8]",
+    empty: "text-[#6a92b0]",
+    add: "border-[#b8d4e8] text-[#3a6a8a]",
+    rowHover: "hover:bg-[#dceef8]",
+    itemText: "text-[#2a5570]",
+    accent: "bg-[#c2d8e8]",
+  },
+  ambient: {
+    card: "border-[#e8d9c4] bg-[#faf4ea]",
+    title: "text-[#8a6a3a]",
+    empty: "text-[#b09a78]",
+    add: "border-[#e0d0b8] text-[#8a6a3a]",
+    rowHover: "hover:bg-[#f3eadc]",
+    itemText: "text-[#5c4528]",
+    accent: "bg-[#e0d0b8]",
+  },
+  kimchi: {
+    card: "border-[#c9ddc8] bg-[#eef6ee]",
+    title: "text-[#3d7058]",
+    empty: "text-[#7a9a88]",
+    add: "border-[#c0d8c4] text-[#3d7058]",
+    rowHover: "hover:bg-[#e2efe4]",
+    itemText: "text-[#2a4f3c]",
+    accent: "bg-[#c0d8c4]",
+  },
+};
 
-  function onScroll(e: UIEvent<HTMLDivElement>) {
-    e.stopPropagation();
-  }
+function ZoneSection({
+  title,
+  panels,
+  variant,
+  onAdd,
+  onSelectItem,
+  metaById,
+}: {
+  title: string;
+  panels: HomeZonePanel[];
+  variant: ZoneVariant;
+  onAdd: (zone: StorageZone, subZone: string | null) => void;
+  onSelectItem: (item: FridgeItem) => void;
+  metaById: Record<string, ItemWithMeta>;
+}) {
+  if (panels.length === 0) return null;
 
-  return { ref, onWheel, onScroll };
+  return (
+    <section className="flex flex-col gap-1.5">
+      <p className="px-0.5 text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        {panels.map((panel, index) => (
+          <ZoneCard
+            key={panel.key}
+            panel={panel}
+            handleSide={index % 2 === 0 ? "right" : "left"}
+            variant={variant}
+            onAdd={() => onAdd(panel.baseZone, panel.label)}
+            onSelectItem={onSelectItem}
+            metaById={metaById}
+          />
+        ))}
+      </div>
+    </section>
+  );
 }
 
+/** Compact zone panel — list rows, page scroll only (no nested scroll). */
 function ZoneCard({
   panel,
   handleSide,
   variant,
-  className,
   onAdd,
   onSelectItem,
   metaById,
 }: {
   panel: HomeZonePanel;
   handleSide?: "left" | "right";
-  variant: "door" | "freezer";
-  className?: string;
+  variant: ZoneVariant;
   onAdd: () => void;
   onSelectItem: (item: FridgeItem) => void;
   metaById: Record<string, ItemWithMeta>;
 }) {
-  const empties = emptyTrailingSlots(panel.items.length);
-  const scroll = useIsolatedScroll();
-  const isFreezer = variant === "freezer";
+  const theme = ZONE_THEME[variant];
+  const showDoorHandle = variant === "fridge";
 
   return (
-    <div
-      className={`flex max-h-[340px] flex-col overflow-hidden rounded-2xl border ${
-        isFreezer
-          ? "border-[rgba(184,212,232,0.5)] bg-[#e8f4ff]"
-          : "border-border bg-white"
-      } ${className ?? ""}`}
-    >
-      {isFreezer ? (
-        <div className="flex shrink-0 justify-center pt-2.5">
-          <div className="h-1 w-[60px] rounded bg-[#c2d8e8]" />
-        </div>
-      ) : (
-        <div
-          className={`flex shrink-0 pt-2 ${
-            handleSide === "right" ? "justify-end pr-3" : "justify-start pl-3"
-          }`}
-        >
-          <div className="h-7 w-1 rounded bg-[#d4d0c8]" />
-        </div>
-      )}
-
-      <div className="flex min-h-0 flex-1 flex-col px-2.5 pt-1 pb-2.5">
+    <div className={`flex flex-col rounded-xl border ${theme.card}`}>
+      <div className="flex items-center gap-1.5 px-2.5 pt-2 pb-1">
+        {showDoorHandle && handleSide === "left" && (
+          <div className="h-4 w-0.5 shrink-0 rounded bg-[#d4d0c8]" aria-hidden />
+        )}
+        {!showDoorHandle && theme.accent && (
+          <div
+            className={`h-0.5 w-8 shrink-0 rounded ${theme.accent}`}
+            aria-hidden
+          />
+        )}
         <p
-          className={`mb-2 shrink-0 truncate px-0.5 text-center text-[12px] font-semibold tracking-tight ${
-            isFreezer ? "text-[#2563a8]" : "text-foreground/70"
-          }`}
+          className={`min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight ${theme.title}`}
         >
           {panel.label}
+          {panel.items.length > 0 && (
+            <span className="ml-1 font-medium text-muted-foreground tabular-nums">
+              · {panel.items.length}
+            </span>
+          )}
         </p>
+        {showDoorHandle && handleSide === "right" && (
+          <div className="h-4 w-0.5 shrink-0 rounded bg-[#d4d0c8]" aria-hidden />
+        )}
+      </div>
 
-        <div
-          ref={scroll.ref}
-          onWheel={scroll.onWheel}
-          onScroll={scroll.onScroll}
-          className="min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] scrollbar-hide"
+      <div className="flex flex-col gap-0.5 px-1.5 pb-1.5">
+        {panel.items.length === 0 ? (
+          <p className={`px-2 py-1.5 text-[11px] ${theme.empty}`}>비어 있어요</p>
+        ) : (
+          panel.items.map((item) => (
+            <ItemListRow
+              key={item.id}
+              item={item}
+              meta={metaById[item.id]}
+              variant={variant}
+              onClick={() => onSelectItem(item)}
+            />
+          ))
+        )}
+        <button
+          type="button"
+          onClick={onAdd}
+          className={`flex h-8 items-center justify-center gap-1 rounded-lg border border-dashed text-[11px] font-medium ${theme.add}`}
+          aria-label={`${panel.label}에 추가`}
         >
-          <div className="grid grid-cols-2 gap-2.5 pb-1">
-            {panel.items.map((item) => (
-              <ItemSlot
-                key={item.id}
-                item={item}
-                meta={metaById[item.id]}
-                variant={variant}
-                onClick={() => onSelectItem(item)}
-              />
-            ))}
-            {Array.from({ length: empties }).map((_, i) => (
-              <button
-                key={`empty-${i}`}
-                type="button"
-                onClick={onAdd}
-                className={`flex aspect-square min-h-[72px] flex-col items-center justify-center rounded-xl border ${
-                  isFreezer
-                    ? "border-[#b8d4e8] bg-[#d0e8f4]"
-                    : "border-[#e8e5de] bg-[#f0ede6]"
-                }`}
-                aria-label={`${panel.label}에 추가`}
-              >
-                <span className="text-[22px] leading-none text-black/25">+</span>
-              </button>
-            ))}
-          </div>
-        </div>
+          <Plus size={12} strokeWidth={2.5} />
+          추가
+        </button>
       </div>
     </div>
   );
 }
 
-function ItemSlot({
+function ItemListRow({
   item,
   meta,
   variant,
@@ -599,44 +647,45 @@ function ItemSlot({
 }: {
   item: FridgeItem;
   meta?: ItemWithMeta;
-  variant: "door" | "freezer";
+  variant: ZoneVariant;
   onClick: () => void;
 }) {
+  const theme = ZONE_THEME[variant];
   const s = EXPIRY_STYLES[meta?.statusKey ?? "unset"];
-  const isFreezer = variant === "freezer";
   const cooked = isCookedDish(item);
+  const qty =
+    item.quantity != null
+      ? `${item.quantity}${item.unit ? item.unit : ""}`
+      : null;
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`relative flex aspect-square min-h-[72px] flex-col items-center justify-center gap-1 rounded-xl border px-1 ${
-        isFreezer
-          ? "border-[#b8d4e8] bg-[#dceef8]"
-          : "border-[#e8e5de] bg-[#f8f6f2]"
-      }`}
+      className={`flex h-9 w-full items-center gap-1.5 rounded-lg px-1.5 text-left transition-colors active:bg-black/[0.04] ${theme.rowHover}`}
     >
       <FoodIcon
         name={item.name}
         category={item.category}
         itemType={item.item_type}
-        size={28}
+        size={18}
       />
       <span
-        className={`max-w-full truncate text-[11px] font-medium leading-tight ${
-          isFreezer ? "text-[#3a6a8a]" : "text-foreground/70"
-        }`}
+        className={`min-w-0 flex-1 truncate text-[12px] font-medium leading-tight ${theme.itemText}`}
       >
         {item.name}
+        {cooked && (
+          <span className="ml-1 text-[9px] font-bold text-[#c47a2c]">요리</span>
+        )}
       </span>
-      {cooked && (
-        <span className="absolute bottom-1 left-1 rounded-md bg-[#fff4e8] px-1 py-px text-[8px] font-bold leading-3 text-[#c47a2c]">
-          요리
+      {qty && (
+        <span className="shrink-0 text-[10px] text-muted-foreground tabular-nums">
+          {qty}
         </span>
       )}
       {meta && (
         <span
-          className={`absolute top-1 right-1 min-w-[2.25rem] rounded-md px-1 py-px text-center text-[9px] font-bold leading-3 tabular-nums ${s.badge}`}
+          className={`shrink-0 rounded px-1 py-px text-[9px] font-bold leading-3 tabular-nums ${s.badge}`}
           title={formatDDay(meta.dDay, Boolean(meta.has_no_expiry))}
         >
           {formatDDayShort(meta.dDay, Boolean(meta.has_no_expiry))}

@@ -15,34 +15,9 @@ type SettingsScreenProps = {
   reportMonth: number;
   /** 이번 달 waste_log(폐기) 건수 */
   discardedThisMonth: number;
+  /** 이번 달 소진 처리 건수 */
+  consumedThisMonth: number;
 };
-
-const EXPIRY_ROWS = [
-  {
-    label: "여유 있음",
-    sub: "D-8 이상",
-    example: "D-12",
-    color: "var(--status-fresh-dot)",
-    bg: "var(--status-fresh-bg)",
-    text: "var(--status-fresh)",
-  },
-  {
-    label: "D-7 이하",
-    sub: "주의 단계",
-    example: "D-6",
-    color: "var(--status-warn-dot)",
-    bg: "var(--status-warn-bg)",
-    text: "var(--status-warn)",
-  },
-  {
-    label: "D-3 이하",
-    sub: "긴급 단계",
-    example: "D-2",
-    color: "var(--status-urgent-dot)",
-    bg: "var(--status-urgent-bg)",
-    text: "var(--status-urgent)",
-  },
-] as const;
 
 function formatNotifyLabel(time: string): string {
   const [hRaw = "0", mRaw = "00"] = time.split(":");
@@ -104,11 +79,19 @@ function toCsv(items: FridgeItem[]): string {
 function MonthlyReportCard({
   month,
   discardedThisMonth,
+  consumedThisMonth,
 }: {
   month: number;
   discardedThisMonth: number;
+  consumedThisMonth: number;
 }) {
   const discarded = Math.max(0, discardedThisMonth);
+  const consumed = Math.max(0, consumedThisMonth);
+  const resolved = consumed + discarded;
+  const consumeRate =
+    resolved === 0 ? null : Math.round((consumed / resolved) * 100);
+  const consumeDeg =
+    consumeRate == null ? 0 : Math.round((consumeRate / 100) * 360);
 
   return (
     <div className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-[0_2px_6px_rgba(0,0,0,0.05)]">
@@ -121,14 +104,9 @@ function MonthlyReportCard({
             {month}월 소비 리포트
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <p className="text-[10px] font-semibold leading-[15px] text-primary">
-            ↓ 지난달 대비 5%p 개선
-          </p>
-          <span className="rounded-full bg-[#edf3ef] px-2 py-0.5 text-[10px] font-semibold leading-[15px] text-primary">
-            이번 달
-          </span>
-        </div>
+        <span className="rounded-full bg-[#edf3ef] px-2 py-0.5 text-[10px] font-semibold leading-[15px] text-primary">
+          이번 달
+        </span>
       </div>
 
       <div className="mt-4 flex items-center gap-5">
@@ -137,13 +115,15 @@ function MonthlyReportCard({
             className="size-full rounded-full"
             style={{
               background:
-                "conic-gradient(#3d7058 0deg 277deg, #d95c45 277deg 360deg)",
+                resolved === 0
+                  ? "conic-gradient(#e8e5de 0deg 360deg)"
+                  : `conic-gradient(#3d7058 0deg ${consumeDeg}deg, #d95c45 ${consumeDeg}deg 360deg)`,
             }}
             aria-hidden
           />
           <div className="absolute inset-[14px] flex flex-col items-center justify-center rounded-full bg-card">
             <span className="min-w-[3ch] text-center text-[20px] font-medium leading-5 text-foreground tabular-nums">
-              77%
+              {consumeRate == null ? "—" : `${consumeRate}%`}
             </span>
             <span className="text-[9px] tracking-tight text-muted-foreground">
               소비율
@@ -159,7 +139,7 @@ function MonthlyReportCard({
             </span>
           </div>
           <p className="mt-0.5 min-w-[2ch] text-[22px] font-medium leading-[22px] text-foreground tabular-nums">
-            23
+            {consumed}
             <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">
               개
             </span>
@@ -266,6 +246,7 @@ export function SettingsScreen({
   initialNotifyTime,
   reportMonth,
   discardedThisMonth,
+  consumedThisMonth,
 }: SettingsScreenProps) {
   const router = useRouter();
   const [notifyTime, setNotifyTime] = useState(initialNotifyTime);
@@ -346,6 +327,7 @@ export function SettingsScreen({
           <MonthlyReportCard
             month={reportMonth}
             discardedThisMonth={discardedThisMonth}
+            consumedThisMonth={consumedThisMonth}
           />
         </div>
 
@@ -375,42 +357,6 @@ export function SettingsScreen({
             <LogOut size={14} aria-hidden />
             로그아웃
           </button>
-        </div>
-
-        {/* Expiry legend */}
-        <div className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-[0_2px_6px_rgba(0,0,0,0.05)]">
-          <p className="mb-3.5 text-[11px] font-semibold tracking-[0.275px] text-muted-foreground uppercase">
-            유통기한 색상 체계
-          </p>
-          <div className="space-y-2.5">
-            {EXPIRY_ROWS.map((row) => (
-              <div key={row.label} className="flex items-center gap-3">
-                <div
-                  className="flex size-8 shrink-0 items-center justify-center rounded-[20px]"
-                  style={{ backgroundColor: row.bg }}
-                >
-                  <span
-                    className="size-2.5 rounded-full"
-                    style={{ backgroundColor: row.color }}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[13px] font-semibold leading-[19.5px] text-foreground">
-                    {row.label}
-                  </p>
-                  <p className="text-[11px] leading-[16.5px] text-muted-foreground">
-                    {row.sub}
-                  </p>
-                </div>
-                <span
-                  className="rounded-full px-2 py-0.5 text-[11px] font-medium leading-[16.5px] tabular-nums"
-                  style={{ color: row.text, backgroundColor: row.bg }}
-                >
-                  {row.example}
-                </span>
-              </div>
-            ))}
-          </div>
         </div>
 
         {/* Notifications — Figma rows + functional time */}

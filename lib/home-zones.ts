@@ -19,7 +19,12 @@ export type HomeZonePanel = {
   items: FridgeItem[];
 };
 
-const UPPER_BASES: StorageZone[] = ["냉장", "실온", "김치냉장고"];
+export type HomeZoneSections = {
+  fridge: HomeZonePanel[];
+  freezer: HomeZonePanel[];
+  ambient: HomeZonePanel[];
+  kimchi: HomeZonePanel[];
+};
 
 function panelsForBase(
   baseZone: StorageZone,
@@ -45,16 +50,20 @@ function panelsForBase(
  * Build home fridge panels from storage_zones + items.
  * - Empty storage_zones → Figma defaults (상칸 좌/우, 냉동실)
  * - Items with null/unknown sub_zone → first panel of that base_zone
- * - Extra base zones (실온/김치) appear only when they have zones or items
+ * - 실온/김치 appear only when they have zones or items
  */
 export function buildHomeZonePanels(
   zoneRows: StorageZoneRow[],
   items: FridgeItem[],
-): { upper: HomeZonePanel[]; freezer: HomeZonePanel[]; other: HomeZonePanel[] } {
+): HomeZoneSections {
   const useDefaults = zoneRows.length === 0;
   const panels: HomeZonePanel[] = [];
 
-  const ensurePanel = (baseZone: StorageZone, label: string, isVirtual: boolean) => {
+  const ensurePanel = (
+    baseZone: StorageZone,
+    label: string,
+    isVirtual: boolean,
+  ) => {
     const key = `${baseZone}:${label}`;
     let panel = panels.find((p) => p.key === key);
     if (!panel) {
@@ -83,13 +92,11 @@ export function buildHomeZonePanels(
     }
 
     if (labels.length > 0) {
-      // null/unknown → first panel of that base (avoids empty defaults + orphan pile)
       const first = panels.find((p) => p.baseZone === item.zone)!;
       first.items.push(item);
       continue;
     }
 
-    // No panels for this base yet (e.g. 실온 item with no zones defined)
     ensurePanel(item.zone, item.zone, true).items.push(item);
   }
 
@@ -100,14 +107,15 @@ export function buildHomeZonePanels(
     return !p.isVirtual;
   });
 
-  const upper = visible.filter((p) => UPPER_BASES.includes(p.baseZone));
-  const freezer = visible.filter((p) => p.baseZone === "냉동");
-  const other: HomeZonePanel[] = [];
-
-  return { upper, freezer, other };
+  return {
+    fridge: visible.filter((p) => p.baseZone === "냉장"),
+    freezer: visible.filter((p) => p.baseZone === "냉동"),
+    ambient: visible.filter((p) => p.baseZone === "실온"),
+    kimchi: visible.filter((p) => p.baseZone === "김치냉장고"),
+  };
 }
 
-/** Trailing empty "+" slots only — no fixed capacity. Empty zone gets 2; otherwise 1. */
+/** @deprecated Prefer list UI without empty grid slots. */
 export function emptyTrailingSlots(itemCount: number): number {
   return itemCount === 0 ? 2 : 1;
 }

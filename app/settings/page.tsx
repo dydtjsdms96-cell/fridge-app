@@ -60,15 +60,33 @@ export default async function SettingsPage() {
   }
 
   const { month, start, nextStart } = currentMonthRangeSeoul();
-  const { count: discardedThisMonth, error: wasteError } = await supabase
-    .from("waste_log")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", user.id)
-    .gte("logged_at", start)
-    .lt("logged_at", nextStart);
+  const monthStartTs = `${start}T00:00:00+09:00`;
+  const monthEndTs = `${nextStart}T00:00:00+09:00`;
+
+  const [
+    { count: discardedThisMonth, error: wasteError },
+    { count: consumedThisMonth, error: consumedError },
+  ] = await Promise.all([
+    supabase
+      .from("waste_log")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .gte("logged_at", start)
+      .lt("logged_at", nextStart),
+    supabase
+      .from("fridge_items")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", user.id)
+      .eq("status", "소진")
+      .gte("updated_at", monthStartTs)
+      .lt("updated_at", monthEndTs),
+  ]);
 
   if (wasteError) {
     console.error("[settings] waste_log count error:", wasteError.message);
+  }
+  if (consumedError) {
+    console.error("[settings] consumed count error:", consumedError.message);
   }
 
   return (
@@ -79,6 +97,7 @@ export default async function SettingsPage() {
         initialNotifyTime={normalizeNotifyTime(profile?.notify_time)}
         reportMonth={month}
         discardedThisMonth={discardedThisMonth ?? 0}
+        consumedThisMonth={consumedThisMonth ?? 0}
       />
     </AppShell>
   );
