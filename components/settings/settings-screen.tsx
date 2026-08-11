@@ -13,6 +13,8 @@ type SettingsScreenProps = {
   userId: string;
   initialNotifyTime: string; // HH:mm
   reportMonth: number;
+  /** 이번 달 waste_log(폐기) 건수 */
+  discardedThisMonth: number;
 };
 
 const EXPIRY_ROWS = [
@@ -99,7 +101,15 @@ function toCsv(items: FridgeItem[]): string {
   return [headers.join(","), ...rows].join("\n");
 }
 
-function MonthlyReportCard({ month }: { month: number }) {
+function MonthlyReportCard({
+  month,
+  discardedThisMonth,
+}: {
+  month: number;
+  discardedThisMonth: number;
+}) {
+  const discarded = Math.max(0, discardedThisMonth);
+
   return (
     <div className="mb-5 rounded-2xl border border-border bg-card p-4 shadow-[0_2px_6px_rgba(0,0,0,0.05)]">
       <div className="flex items-center justify-between gap-2">
@@ -162,7 +172,7 @@ function MonthlyReportCard({ month }: { month: number }) {
             </span>
           </div>
           <p className="mt-0.5 min-w-[2ch] text-[22px] font-medium leading-[22px] text-foreground tabular-nums">
-            7
+            {discarded}
             <span className="ml-0.5 text-[11px] font-normal text-muted-foreground">
               개
             </span>
@@ -174,17 +184,30 @@ function MonthlyReportCard({ month }: { month: number }) {
 
       <div className="mt-3.5 flex items-start gap-2.5">
         <span className="pt-px text-[18px] leading-[18px]" aria-hidden>
-          🍗
+          {discarded === 0 ? "🌿" : "🗑️"}
         </span>
         <div className="min-w-0">
-          <p className="text-[12px] font-bold leading-[16.5px] text-foreground">
-            이번 달 약{" "}
-            <span className="font-medium tabular-nums">12,600</span>
-            원어치를 날렸어요
-          </p>
-          <p className="mt-0.5 text-[11px] leading-[16.5px] text-muted-foreground">
-            치킨 한 마리 값이에요. 아깝다아~! 😅
-          </p>
+          {discarded === 0 ? (
+            <>
+              <p className="text-[12px] font-bold leading-[16.5px] text-foreground">
+                이번 달 버린 음식이 없어요
+              </p>
+              <p className="mt-0.5 text-[11px] leading-[16.5px] text-muted-foreground">
+                잘하고 있어요. 이 페이스를 유지해 봐요.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] font-bold leading-[16.5px] text-foreground">
+                이번 달{" "}
+                <span className="font-medium tabular-nums">{discarded}</span>
+                개를 버렸어요
+              </p>
+              <p className="mt-0.5 text-[11px] leading-[16.5px] text-muted-foreground">
+                유통기한 임박 재료부터 쓰면 더 줄일 수 있어요.
+              </p>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -242,6 +265,7 @@ export function SettingsScreen({
   userId,
   initialNotifyTime,
   reportMonth,
+  discardedThisMonth,
 }: SettingsScreenProps) {
   const router = useRouter();
   const [notifyTime, setNotifyTime] = useState(initialNotifyTime);
@@ -319,7 +343,10 @@ export function SettingsScreen({
         </h1>
 
         <div className="mt-5">
-          <MonthlyReportCard month={reportMonth} />
+          <MonthlyReportCard
+            month={reportMonth}
+            discardedThisMonth={discardedThisMonth}
+          />
         </div>
 
         {/* Profile — email + logout (Figma: emoji avatar + chevron look) */}

@@ -5,11 +5,11 @@ const config: CapacitorConfig = {
   appName: "프레시포켓",
   webDir: "www",
   server: {
-    url: "https://fridge-app-chi.vercel.app",
+    url: "https://fridge-app-aolm.vercel.app",
     cleartext: false,
     androidScheme: "https",
     allowNavigation: [
-      "fridge-app-chi.vercel.app",
+      "fridge-app-aolm.vercel.app",
       "*.vercel.app",
       "*.supabase.co",
     ],
