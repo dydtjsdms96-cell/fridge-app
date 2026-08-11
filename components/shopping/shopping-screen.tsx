@@ -192,7 +192,7 @@ export function ShoppingScreen({ initialItems, userId }: ShoppingScreenProps) {
                 <SwipeDeleteRow
                   key={item.id}
                   disabled={deletingId === item.id || clearing}
-                  contentClassName="bg-transparent"
+                  contentClassName="bg-background"
                   onDelete={() => void deleteItem(item)}
                 >
                   <ShoppingRow

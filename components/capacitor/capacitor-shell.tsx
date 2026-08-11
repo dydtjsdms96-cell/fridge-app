@@ -8,6 +8,7 @@ import { Network } from "@capacitor/network";
 import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { WifiOff } from "lucide-react";
+import { ImmersiveModeProvider } from "@/components/layout/immersive-mode";
 
 const STATUS_BAR_COLOR = "#2E5B4C";
 const EXIT_TOAST_MS = 2000;
@@ -109,7 +110,7 @@ export function CapacitorShell({ children }: { children: ReactNode }) {
   }, [router]);
 
   return (
-    <>
+    <ImmersiveModeProvider>
       {children}
       {offline && (
         <div
@@ -137,6 +138,6 @@ export function CapacitorShell({ children }: { children: ReactNode }) {
           </div>
         </div>
       )}
-    </>
+    </ImmersiveModeProvider>
   );
 }

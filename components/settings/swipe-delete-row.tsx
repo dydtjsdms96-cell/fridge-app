@@ -10,12 +10,14 @@ import { Trash2 } from "lucide-react";
 
 const DELETE_WIDTH = 76;
 const LONG_PRESS_MS = 480;
+/** Treat as closed until the user has dragged past this threshold (avoids flash). */
+const OPEN_VISIBILITY_PX = 2;
 
 type SwipeDeleteRowProps = {
   children: ReactNode;
   onDelete: () => void;
   disabled?: boolean;
-  /** Sliding content background (default bg-card) */
+  /** Sliding content background — must be opaque so the delete affordance stays hidden when closed */
   contentClassName?: string;
 };
 
@@ -31,6 +33,8 @@ export function SwipeDeleteRow({
   const dragging = useRef(false);
   const longPressTimer = useRef<number | null>(null);
   const moved = useRef(false);
+
+  const revealed = offset < -OPEN_VISIBILITY_PX;
 
   function clearLongPress() {
     if (longPressTimer.current != null) {
@@ -75,18 +79,24 @@ export function SwipeDeleteRow({
     <div className="relative overflow-hidden rounded-2xl">
       <button
         type="button"
+        tabIndex={revealed ? 0 : -1}
+        aria-hidden={!revealed}
         onClick={() => {
           setOffset(0);
           onDelete();
         }}
-        className="absolute inset-y-0 right-0 flex w-[76px] items-center justify-center bg-status-urgent text-white"
+        className="absolute inset-y-0 right-0 flex w-[76px] items-center justify-center bg-status-urgent text-white transition-opacity duration-150"
+        style={{
+          opacity: revealed ? 1 : 0,
+          pointerEvents: revealed ? "auto" : "none",
+        }}
         aria-label="삭제"
       >
         <Trash2 size={18} />
       </button>
       <div
-        className={`relative touch-pan-y transition-transform duration-150 ease-out ${contentClassName}`}
-        style={{ transform: `translateX(${offset}px)` }}
+        className={`relative z-[1] touch-pan-y transition-transform duration-150 ease-out ${contentClassName}`}
+        style={{ transform: `translate3d(${offset}px, 0, 0)` }}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
