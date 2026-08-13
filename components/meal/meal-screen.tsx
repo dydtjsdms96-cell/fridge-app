@@ -162,7 +162,6 @@ export function MealScreen({
         </div>
       ) : (
         <WeekPlanner
-          key={plans.map((p) => p.id).join("|")}
           matches={matches}
           recipes={recipes}
           fridgeItems={fridgeItems}

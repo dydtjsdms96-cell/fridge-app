@@ -1,0 +1,19 @@
+capsule-info {
+  display-name (프레시포켓)
+  developer-name (FreshPocket)
+  icon-asset (/images/icon.png)
+  description ("냉장고 재료를 말로 추가하세요. 우유 1.8리터 계란 10개처럼 말하면 앱에서 확인 후 등록합니다.")
+  website-url (https://fridge-app-aolm.vercel.app)
+  dispatch-name (프레시포켓)
+  dispatch-aliases {
+    alias (프레시 포켓)
+    alias (FreshPocket)
+  }
+  search-keywords {
+    keyword (냉장고)
+    keyword (식재료)
+    keyword (유통기한)
+    keyword (프레시포켓)
+    keyword (음성등록)
+  }
+}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Capacitor } from "@capacitor/core";
 import { App } from "@capacitor/app";
@@ -9,6 +9,7 @@ import { SplashScreen } from "@capacitor/splash-screen";
 import { StatusBar, Style } from "@capacitor/status-bar";
 import { WifiOff } from "lucide-react";
 import { ImmersiveModeProvider } from "@/components/layout/immersive-mode";
+import { VoiceAddRequestProvider } from "@/components/fridge/voice-add-request";
 
 const STATUS_BAR_COLOR = "#2E5B4C";
 const EXIT_TOAST_MS = 2000;
@@ -111,7 +112,9 @@ export function CapacitorShell({ children }: { children: ReactNode }) {
 
   return (
     <ImmersiveModeProvider>
-      {children}
+      <Suspense fallback={null}>
+        <VoiceAddRequestProvider>{children}</VoiceAddRequestProvider>
+      </Suspense>
       {offline && (
         <div
           className="fixed inset-0 z-[100] flex flex-col items-center justify-center gap-4 bg-[#f5f4f0] px-8 text-center"

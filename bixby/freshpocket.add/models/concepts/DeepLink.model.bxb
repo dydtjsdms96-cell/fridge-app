@@ -1,0 +1,3 @@
+text (DeepLink) {
+  description (프레시포켓 앱을 여는 freshpocket:// 딥링크)
+}

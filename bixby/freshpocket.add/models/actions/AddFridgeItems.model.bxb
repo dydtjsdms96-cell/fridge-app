@@ -1,0 +1,11 @@
+action (AddFridgeItems) {
+  description (발화 문장으로 프레시포켓 재료 추가 화면을 엽니다)
+  type (Calculation)
+  collect {
+    input (utterance) {
+      type (Utterance)
+      min (Required) max (One)
+    }
+  }
+  output (DeepLink)
+}

@@ -1,0 +1,8 @@
+hints {
+  uncategorized {
+    // ko-KR named dispatch: "%dispatch-name%에서 ..."
+    hint ("프레시포켓에서 우유 1.8리터 계란 10개 추가해줘")
+    hint ("프레시포켓에서 두부랑 대파 넣어줘")
+    hint ("프레시포켓에서 아이스크림 2개 등록해줘")
+  }
+}

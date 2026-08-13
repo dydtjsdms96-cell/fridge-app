@@ -3,5 +3,5 @@
     <string name="app_name">프레시포켓</string>
     <string name="title_activity_main">프레시포켓</string>
     <string name="package_name">com.dydtjsdms96.fridgeapp</string>
-    <string name="custom_url_scheme">com.dydtjsdms96.fridgeapp</string>
+    <string name="custom_url_scheme">freshpocket</string>
 </resources>

@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -47,6 +48,7 @@ import {
   type CookedDishPayload,
 } from "@/components/fridge/cooked-dish-add-sheet";
 import { VoiceRegisterFlow } from "@/components/fridge/voice-register-flow";
+import { useOptionalVoiceAddRequest } from "@/components/fridge/voice-add-request";
 import {
   ItemDetailSheet,
   type ConfirmMode,
@@ -80,6 +82,7 @@ type HomeScreenProps = {
 
 export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScreenProps) {
   const router = useRouter();
+  const voiceAddRequest = useOptionalVoiceAddRequest();
   const [items, setItems] = useState(initialItems);
   const [zones, setZones] = useState(initialZones);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
@@ -87,6 +90,9 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showCookedDish, setShowCookedDish] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
+  const [voiceInitialUtterance, setVoiceInitialUtterance] = useState<
+    string | undefined
+  >();
   const [selectedItem, setSelectedItem] = useState<FridgeItem | null>(null);
   const [renameTarget, setRenameTarget] = useState<HomeZonePanel | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -101,6 +107,16 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
   useEffect(() => {
     setZones(initialZones);
   }, [initialZones]);
+
+  // Deep link / Bixby → open voice review with parsed utterance
+  useEffect(() => {
+    const text = voiceAddRequest?.utterance;
+    if (!text) return;
+    setVoiceInitialUtterance(text);
+    setShowVoice(true);
+    setShowAddOptions(false);
+    voiceAddRequest.clearUtterance();
+  }, [voiceAddRequest?.utterance]);
 
   const enriched = useMemo(() => enrich(items), [items]);
   const panels = useMemo(
@@ -522,6 +538,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
             setShowManualAdd(true);
           }}
           onSelectVoice={() => {
+            setVoiceInitialUtterance(undefined);
             setShowVoice(true);
           }}
           onSelectReceipt={() => {
@@ -557,7 +574,17 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
 
       {showVoice && (
         <VoiceRegisterFlow
-          onClose={() => setShowVoice(false)}
+          key={voiceInitialUtterance ?? "mic"}
+          initialUtterance={voiceInitialUtterance}
+          onClose={() => {
+            setShowVoice(false);
+            setVoiceInitialUtterance(undefined);
+          }}
+          onFallbackToManual={() => {
+            setShowVoice(false);
+            setVoiceInitialUtterance(undefined);
+            setShowManualAdd(true);
+          }}
           onRegister={handleVoiceRegister}
         />
       )}
@@ -696,6 +723,7 @@ const ZONE_THEME: Record<
 };
 
 const LONG_PRESS_MS = 420;
+const FLIP_MS = 220;
 
 function ZoneSection({
   title,
@@ -719,12 +747,73 @@ function ZoneSection({
   const [order, setOrder] = useState(panels);
   const dragId = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const longPressTimer = useRef<number | null>(null);
+  const pointerOrigin = useRef({ x: 0, y: 0 });
+  const lastPointer = useRef({ x: 0, y: 0 });
+  const grabOffset = useRef({ x: 0, y: 0 });
   const cardRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const lastRects = useRef<Record<string, DOMRect>>({});
 
   useEffect(() => {
     setOrder(panels);
   }, [panels]);
+
+  function naturalRect(node: HTMLDivElement) {
+    const prev = node.style.transform;
+    node.style.transform = "none";
+    const rect = node.getBoundingClientRect();
+    node.style.transform = prev;
+    return rect;
+  }
+
+  function syncDragOffsetToFinger() {
+    const id = dragId.current;
+    if (!id) return;
+    const node = cardRefs.current[id];
+    if (!node) return;
+    const rect = naturalRect(node);
+    setDragOffset({
+      x: lastPointer.current.x - grabOffset.current.x - rect.left,
+      y: lastPointer.current.y - grabOffset.current.y - rect.top,
+    });
+  }
+
+  // FLIP: animate siblings into their new grid slots after reorder.
+  useLayoutEffect(() => {
+    const nextRects: Record<string, DOMRect> = {};
+    for (const panel of order) {
+      if (!panel.id) continue;
+      const node = cardRefs.current[panel.id];
+      if (!node) continue;
+
+      if (panel.id === dragId.current) {
+        nextRects[panel.id] = naturalRect(node);
+        continue;
+      }
+
+      const next = node.getBoundingClientRect();
+      nextRects[panel.id] = next;
+      const prev = lastRects.current[panel.id];
+      if (!prev) continue;
+      const dx = prev.left - next.left;
+      const dy = prev.top - next.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) continue;
+      node.style.transition = "none";
+      node.style.transform = `translate(${dx}px, ${dy}px)`;
+      void node.offsetWidth;
+      node.style.transition = `transform ${FLIP_MS}ms cubic-bezier(0.2, 0.8, 0.2, 1)`;
+      node.style.transform = "";
+      const clear = () => {
+        node.style.transition = "";
+        node.removeEventListener("transitionend", clear);
+      };
+      node.addEventListener("transitionend", clear);
+    }
+    lastRects.current = nextRects;
+    // Keep the dragged card glued to the finger after layout shifts.
+    if (dragId.current) syncDragOffsetToFinger();
+  }, [order]);
 
   if (panels.length === 0) return null;
 
@@ -735,21 +824,50 @@ function ZoneSection({
     }
   }
 
-  function startLongPress(panel: HomeZonePanel) {
+  function snapshotRects() {
+    const rects: Record<string, DOMRect> = {};
+    for (const panel of order) {
+      if (!panel.id) continue;
+      const node = cardRefs.current[panel.id];
+      if (!node) continue;
+      rects[panel.id] =
+        panel.id === dragId.current ? naturalRect(node) : node.getBoundingClientRect();
+    }
+    lastRects.current = rects;
+  }
+
+  function startLongPress(panel: HomeZonePanel, e: ReactPointerEvent) {
     if (!panel.id) return;
     clearLongPress();
+    pointerOrigin.current = { x: e.clientX, y: e.clientY };
+    lastPointer.current = { x: e.clientX, y: e.clientY };
     longPressTimer.current = window.setTimeout(() => {
+      const node = cardRefs.current[panel.id!];
+      if (!node) return;
+      const rect = naturalRect(node);
+      grabOffset.current = {
+        x: lastPointer.current.x - rect.left,
+        y: lastPointer.current.y - rect.top,
+      };
+      snapshotRects();
       dragId.current = panel.id;
       setDraggingId(panel.id);
+      setDragOffset({ x: 0, y: 0 });
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
+      }
     }, LONG_PRESS_MS);
   }
 
   function moveDragTo(targetId: string) {
     if (!dragId.current || dragId.current === targetId) return;
+    snapshotRects();
     setOrder((prev) => {
       const from = prev.findIndex((p) => p.id === dragId.current);
       const to = prev.findIndex((p) => p.id === targetId);
-      if (from < 0 || to < 0) return prev;
+      if (from < 0 || to < 0 || from === to) return prev;
       const next = prev.slice();
       const [moved] = next.splice(from, 1);
       next.splice(to, 0, moved);
@@ -758,8 +876,19 @@ function ZoneSection({
   }
 
   function onPointerMove(e: ReactPointerEvent) {
-    if (!dragId.current) return;
+    lastPointer.current = { x: e.clientX, y: e.clientY };
+    if (!dragId.current) {
+      const dx = e.clientX - pointerOrigin.current.x;
+      const dy = e.clientY - pointerOrigin.current.y;
+      if (Math.hypot(dx, dy) > 10) clearLongPress();
+      return;
+    }
+    syncDragOffsetToFinger();
+
+    const floating = cardRefs.current[dragId.current];
+    if (floating) floating.style.pointerEvents = "none";
     const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (floating) floating.style.pointerEvents = "";
     if (!el) return;
     const card = el.closest("[data-zone-id]") as HTMLElement | null;
     const targetId = card?.dataset.zoneId;
@@ -772,6 +901,7 @@ function ZoneSection({
     const ids = order.map((p) => p.id).filter((id): id is string => Boolean(id));
     dragId.current = null;
     setDraggingId(null);
+    setDragOffset({ x: 0, y: 0 });
     onReorder(ids);
   }
 
@@ -787,13 +917,16 @@ function ZoneSection({
             panel={panel}
             variant={variant}
             dragging={draggingId === panel.id}
+            dragOffset={
+              draggingId === panel.id ? dragOffset : { x: 0, y: 0 }
+            }
             cardRef={(node) => {
               if (panel.id) cardRefs.current[panel.id] = node;
             }}
             onAdd={() => onAdd(panel.baseZone, panel.label)}
             onSelectItem={onSelectItem}
             onRename={() => onRename(panel)}
-            onPointerDownCard={() => startLongPress(panel)}
+            onPointerDownCard={(e) => startLongPress(panel, e)}
             onPointerMoveCard={onPointerMove}
             onPointerUpCard={endDrag}
             onPointerCancelCard={endDrag}
@@ -809,6 +942,7 @@ function ZoneCard({
   panel,
   variant,
   dragging,
+  dragOffset,
   cardRef,
   onAdd,
   onSelectItem,
@@ -822,11 +956,12 @@ function ZoneCard({
   panel: HomeZonePanel;
   variant: ZoneVariant;
   dragging: boolean;
+  dragOffset: { x: number; y: number };
   cardRef: (node: HTMLDivElement | null) => void;
   onAdd: () => void;
   onSelectItem: (item: FridgeItem) => void;
   onRename: () => void;
-  onPointerDownCard: () => void;
+  onPointerDownCard: (e: ReactPointerEvent) => void;
   onPointerMoveCard: (e: ReactPointerEvent) => void;
   onPointerUpCard: () => void;
   onPointerCancelCard: () => void;
@@ -838,9 +973,19 @@ function ZoneCard({
     <div
       ref={cardRef}
       data-zone-id={panel.id ?? undefined}
-      className={`flex touch-none flex-col rounded-xl border transition-shadow ${theme.card} ${
-        dragging ? "scale-[1.02] shadow-lg ring-2 ring-primary/30" : ""
+      className={`relative flex touch-none flex-col rounded-xl border will-change-transform ${theme.card} ${
+        dragging
+          ? "z-30 shadow-[0_16px_32px_rgba(0,0,0,0.2)] ring-2 ring-primary/35"
+          : "z-0"
       }`}
+      style={
+        dragging
+          ? {
+              transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(1.04)`,
+              transition: "box-shadow 160ms ease",
+            }
+          : undefined
+      }
       onPointerDown={onPointerDownCard}
       onPointerMove={onPointerMoveCard}
       onPointerUp={onPointerUpCard}

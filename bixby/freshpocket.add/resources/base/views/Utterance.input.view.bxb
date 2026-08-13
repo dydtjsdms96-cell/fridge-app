@@ -1,0 +1,8 @@
+input-view {
+  match: Utterance (this) {
+    to-input: AddFridgeItems
+  }
+  message {
+    template ("추가할 재료를 말씀해 주세요. 예: 우유 1.8리터 계란 10개")
+  }
+}

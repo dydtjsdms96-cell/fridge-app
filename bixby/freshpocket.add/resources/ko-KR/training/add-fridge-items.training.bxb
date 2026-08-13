@@ -1,0 +1,35 @@
+train (t-add-milk-eggs) {
+  utterance ("[g:DeepLink] 프레시포켓에서 (우유 1.8L 계란 10개)[v:Utterance] 추가해줘")
+}
+
+train (t-add-milk-eggs-liter) {
+  utterance ("[g:DeepLink] 프레시포켓에서 (우유 1.8리터 계란 10개)[v:Utterance] 추가해줘")
+}
+
+train (t-add-put) {
+  utterance ("[g:DeepLink] 프레시포켓에서 (두부랑 대파)[v:Utterance] 넣어줘")
+}
+
+train (t-add-register) {
+  utterance ("[g:DeepLink] 프레시포켓에서 (닭가슴살 2팩)[v:Utterance] 등록해줘")
+}
+
+train (t-add-fridge) {
+  utterance ("[g:DeepLink] 냉장고에 (양파 3개)[v:Utterance] 추가해줘")
+}
+
+train (t-add-ice-cream) {
+  utterance ("[g:DeepLink] 프레시포켓에서 (아이스크림 2개)[v:Utterance] 등록해줘")
+}
+
+train (t-add-short) {
+  utterance ("[g:DeepLink] (계란 10개)[v:Utterance] 추가해줘")
+}
+
+train (t-add-qty-first) {
+  utterance ("[g:DeepLink] 프레시포켓에서 (1.8리터 우유)[v:Utterance] 넣어줘")
+}
+
+train (t-add-natural-e) {
+  utterance ("[g:DeepLink] 프레시포켓에 (우유 1.8L 계란 10개)[v:Utterance] 추가해줘")
+}

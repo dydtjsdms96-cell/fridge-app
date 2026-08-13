@@ -55,12 +55,30 @@ export async function updateSession(request: NextRequest) {
   if (!user && !isPublicPage) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
+    // Preserve deep-link utterance across auth redirect
+    const voiceText =
+      request.nextUrl.searchParams.get("voiceAdd") ??
+      request.nextUrl.searchParams.get("text") ??
+      request.nextUrl.searchParams.get("q");
+    if (voiceText?.trim()) {
+      url.searchParams.set("voiceAdd", voiceText.trim());
+    } else if (pathname === "/add") {
+      const t =
+        request.nextUrl.searchParams.get("text") ??
+        request.nextUrl.searchParams.get("q");
+      if (t?.trim()) url.searchParams.set("voiceAdd", t.trim());
+    }
     return NextResponse.redirect(url);
   }
 
   if (user && pathname.startsWith("/login")) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
+    const voiceAdd = request.nextUrl.searchParams.get("voiceAdd");
+    url.search = "";
+    if (voiceAdd?.trim()) {
+      url.searchParams.set("voiceAdd", voiceAdd.trim());
+    }
     return NextResponse.redirect(url);
   }
 

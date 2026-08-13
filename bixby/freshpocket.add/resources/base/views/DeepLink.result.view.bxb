@@ -1,0 +1,15 @@
+result-view {
+  match: DeepLink (this)
+
+  message {
+    template ("프레시포켓에 넣을게요.")
+  }
+
+  app-launch {
+    payload-uri ("#{value(this)}")
+  }
+
+  render {
+    nothing
+  }
+}

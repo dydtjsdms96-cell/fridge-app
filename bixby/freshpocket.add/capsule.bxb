@@ -1,0 +1,22 @@
+capsule {
+  // Developer Center Capsule ID (네임스페이스.캡슐이름)
+  // Team 이름 ≠ 네임스페이스일 수 있음 → Console 캡슐 상세 상단의 Capsule ID를 그대로 넣을 것
+  // 현재 등록 가정: namespace=freshpocket, capsule name=freshpocket
+  id (freshpocket.freshpocket)
+  version (0.1.1)
+  format (3)
+  targets {
+    target (bixby-mobile-ko-KR)
+  }
+  runtime-version (9) {
+    js-runtime-version (2)
+  }
+  store-sections {
+    section (FoodAndDrink)
+  }
+  store-countries {
+    only {
+      allow (KR)
+    }
+  }
+}

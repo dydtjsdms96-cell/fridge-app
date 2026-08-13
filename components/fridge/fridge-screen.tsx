@@ -573,6 +573,10 @@ export function FridgeScreen({
       {showVoice && (
         <VoiceRegisterFlow
           onClose={() => setShowVoice(false)}
+          onFallbackToManual={() => {
+            setShowVoice(false);
+            setShowManualAdd(true);
+          }}
           onRegister={handleVoiceRegister}
         />
       )}

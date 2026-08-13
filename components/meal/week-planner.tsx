@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
 import type { RecipeMatch, RecipeWithIngredients } from "@/lib/recipe-match";
@@ -40,6 +40,12 @@ type WeekPlannerProps = {
 /** plan_date|meal_type → entries in that slot */
 type PlanMap = Record<string, MealPlanEntry[]>;
 
+type DragState = {
+  match: RecipeMatch;
+  x: number;
+  y: number;
+};
+
 function buildPlanMap(plans: MealPlanEntry[]): PlanMap {
   const map: PlanMap = {};
   for (const p of plans) {
@@ -77,6 +83,25 @@ export function WeekPlanner({
   const [shoppingBusy, setShoppingBusy] = useState(false);
   const [shoppingMsg, setShoppingMsg] = useState<string | null>(null);
   const [placeError, setPlaceError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<DragState | null>(null);
+  const [hoverMeal, setHoverMeal] = useState<MealSlot | null>(null);
+  const [dropBusy, setDropBusy] = useState(false);
+
+  const draggingRef = useRef<DragState | null>(null);
+  const hoverMealRef = useRef<MealSlot | null>(null);
+  const selectedDayRef = useRef(selectedDay);
+
+  useEffect(() => {
+    selectedDayRef.current = selectedDay;
+  }, [selectedDay]);
+
+  useEffect(() => {
+    draggingRef.current = dragging;
+  }, [dragging]);
+
+  useEffect(() => {
+    hoverMealRef.current = hoverMeal;
+  }, [hoverMeal]);
 
   const selectedDate = dateByDay[selectedDay];
 
@@ -102,14 +127,17 @@ export function WeekPlanner({
   const ready = matches.filter((m) => m.group === "냉털");
   const plusOne = matches.filter((m) => m.group === "+1");
 
-  async function placeRecipe(day: WeekDay, meal: MealSlot) {
-    if (!placing) return;
+  async function placeRecipeAt(
+    match: RecipeMatch,
+    day: WeekDay,
+    meal: MealSlot,
+  ) {
     setPlaceError(null);
     const planDate = dateByDay[day];
     const { data, error } = await placeMealRecipe({
       userId,
-      recipeId: placing.recipe.id,
-      recipeTitle: placing.recipe.title,
+      recipeId: match.recipe.id,
+      recipeTitle: match.recipe.title,
       day,
       meal,
     });
@@ -131,6 +159,11 @@ export function WeekPlanner({
     });
   }
 
+  async function placeRecipe(day: WeekDay, meal: MealSlot) {
+    if (!placing) return;
+    await placeRecipeAt(placing, day, meal);
+  }
+
   async function removeEntry(entry: MealPlanEntry) {
     const key = `${entry.plan_date}|${entry.meal_type}`;
     const supabase = createClient();
@@ -150,6 +183,66 @@ export function WeekPlanner({
       return next;
     });
   }
+
+  function mealFromPoint(clientX: number, clientY: number): MealSlot | null {
+    const el = document.elementFromPoint(clientX, clientY);
+    const slot = el?.closest("[data-meal-slot]") as HTMLElement | null;
+    const value = slot?.dataset.mealSlot;
+    if (value && (MEAL_SLOTS as readonly string[]).includes(value)) {
+      return value as MealSlot;
+    }
+    return null;
+  }
+
+  function beginDrag(match: RecipeMatch, clientX: number, clientY: number) {
+    const next = { match, x: clientX, y: clientY };
+    draggingRef.current = next;
+    setDragging(next);
+    setHoverMeal(mealFromPoint(clientX, clientY));
+    setPlaceError(null);
+  }
+
+  useEffect(() => {
+    if (!dragging) return;
+
+    function onMove(e: PointerEvent) {
+      const cur = draggingRef.current;
+      if (!cur) return;
+      const next = { ...cur, x: e.clientX, y: e.clientY };
+      draggingRef.current = next;
+      setDragging(next);
+      const meal = mealFromPoint(e.clientX, e.clientY);
+      hoverMealRef.current = meal;
+      setHoverMeal(meal);
+    }
+
+    async function onUp() {
+      const cur = draggingRef.current;
+      const meal = hoverMealRef.current;
+      draggingRef.current = null;
+      hoverMealRef.current = null;
+      setDragging(null);
+      setHoverMeal(null);
+      if (!cur || !meal || dropBusy) return;
+      setDropBusy(true);
+      try {
+        await placeRecipeAt(cur.match, selectedDayRef.current, meal);
+      } catch {
+        // placeError already set
+      } finally {
+        setDropBusy(false);
+      }
+    }
+
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onUp);
+    };
+  }, [Boolean(dragging)]);
 
   async function generateShoppingList() {
     if (shoppingBusy) return;
@@ -271,7 +364,11 @@ export function WeekPlanner({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide sm:px-6 lg:px-8">
+      <div
+        className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide sm:px-6 lg:px-8 ${
+          dragging ? "overflow-hidden touch-none" : ""
+        }`}
+      >
         <div className="mb-3 flex gap-1.5">
           {WEEK_DAYS.map((day) => {
             const on = selectedDay === day;
@@ -307,14 +404,24 @@ export function WeekPlanner({
         <div className="mb-5 space-y-2">
           {MEAL_SLOTS.map((meal) => {
             const placed = planMap[`${selectedDate}|${meal}`] ?? [];
+            const isDropTarget = dragging != null && hoverMeal === meal;
             return (
               <div key={meal} className="flex items-start gap-2.5">
                 <span className="mt-3 w-7 shrink-0 text-[11px] font-semibold text-muted-foreground">
                   {meal}
                 </span>
-                {placed.length > 0 ? (
-                  <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-                    {placed.map((entry) => {
+                <div
+                  data-meal-slot={meal}
+                  className={`flex min-w-0 flex-1 flex-col gap-1.5 rounded-xl transition-all ${
+                    isDropTarget
+                      ? "bg-primary/10 ring-2 ring-primary ring-offset-2 ring-offset-background"
+                      : dragging
+                        ? "ring-1 ring-dashed ring-border"
+                        : ""
+                  }`}
+                >
+                  {placed.length > 0 ? (
+                    placed.map((entry) => {
                       const title =
                         entry.recipes?.title ?? entry.label ?? "요리";
                       return (
@@ -345,17 +452,37 @@ export function WeekPlanner({
                           </button>
                         </div>
                       );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex flex-1 items-center justify-center rounded-xl border border-dashed border-border bg-muted/50 py-3 text-muted-foreground">
-                    <Plus size={16} aria-hidden />
-                  </div>
-                )}
+                    })
+                  ) : (
+                    <div
+                      className={`flex flex-1 items-center justify-center rounded-xl border border-dashed py-3 ${
+                        isDropTarget
+                          ? "border-primary bg-primary/5 text-primary"
+                          : "border-border bg-muted/50 text-muted-foreground"
+                      }`}
+                    >
+                      <Plus size={16} aria-hidden />
+                      {isDropTarget && (
+                        <span className="ml-1.5 text-[11px] font-semibold">
+                          여기에 놓기
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {placed.length > 0 && isDropTarget && (
+                    <div className="flex items-center justify-center rounded-xl border border-dashed border-primary bg-primary/5 py-2 text-[11px] font-semibold text-primary">
+                      여기에 추가
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
+
+        <p className="mb-3 text-[11px] text-muted-foreground">
+          레시피를 길게 눌러 위 끼니로 드래그하거나, + 로 배치할 수 있어요
+        </p>
 
         <div className="space-y-4">
           <div>
@@ -373,6 +500,8 @@ export function WeekPlanner({
                 <CandidateCard
                   key={m.recipe.id}
                   match={m}
+                  dragging={dragging?.match.recipe.id === m.recipe.id}
+                  onDragBegin={beginDrag}
                   onAdd={() => {
                     setPlaceError(null);
                     setPlacing(m);
@@ -404,6 +533,8 @@ export function WeekPlanner({
                 <CandidateCard
                   key={m.recipe.id}
                   match={m}
+                  dragging={dragging?.match.recipe.id === m.recipe.id}
+                  onDragBegin={beginDrag}
                   onAdd={() => {
                     setPlaceError(null);
                     setPlacing(m);
@@ -453,6 +584,22 @@ export function WeekPlanner({
       {placeError && !placing && (
         <div className="absolute inset-x-5 bottom-24 z-40 rounded-xl border border-status-warn-border bg-status-warn-bg px-3.5 py-2.5 text-center text-[11px] font-medium text-status-warn shadow-lg">
           {placeError}
+        </div>
+      )}
+
+      {dragging && (
+        <div
+          className="pointer-events-none fixed z-50 flex max-w-[220px] items-center gap-2 rounded-xl border border-primary/30 bg-card px-3 py-2.5 shadow-[0_12px_28px_rgba(0,0,0,0.18)]"
+          style={{
+            left: dragging.x,
+            top: dragging.y,
+            transform: "translate(-50%, -120%) scale(1.04)",
+          }}
+        >
+          <FoodIcon name={dragging.match.recipe.title} size={22} />
+          <span className="truncate text-[12px] font-semibold text-foreground">
+            {dragging.match.recipe.title}
+          </span>
         </div>
       )}
     </div>
