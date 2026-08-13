@@ -14,6 +14,7 @@ import {
   Bell,
   ChevronDown,
   ClipboardList,
+  GripVertical,
   MoreVertical,
   Plus,
   SlidersHorizontal,
@@ -30,6 +31,7 @@ import {
 } from "@/lib/dday";
 import { createClient } from "@/lib/supabase";
 import {
+  UNASSIGNED_SUB_ZONE_LABEL,
   buildHomeZonePanels,
   type HomeZonePanel,
 } from "@/lib/home-zones";
@@ -75,6 +77,19 @@ function enrich(items: FridgeItem[]): ItemWithMeta[] {
 
 type AddTarget = { zone: StorageZone; subZone: string | null };
 
+type ItemDragState = {
+  item: FridgeItem;
+  x: number;
+  y: number;
+  grabX: number;
+  grabY: number;
+  width: number;
+  height: number;
+};
+
+const LONG_PRESS_MS = 420;
+const FLIP_MS = 220;
+
 type HomeScreenProps = {
   items: FridgeItem[];
   zones: StorageZoneRow[];
@@ -97,6 +112,12 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
   const [renameTarget, setRenameTarget] = useState<HomeZonePanel | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [itemDrag, setItemDrag] = useState<ItemDragState | null>(null);
+  const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
+  const itemDragRef = useRef<ItemDragState | null>(null);
+  const itemLongPressTimer = useRef<number | null>(null);
+  const itemPointerOrigin = useRef({ x: 0, y: 0 });
+  const suppressItemClick = useRef(false);
   const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
   const { message, showToast } = useToast();
 
@@ -197,24 +218,178 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
     router.refresh();
   }
 
+  /** Reorder zones as containers: only sort_order changes (never label / item sub_zone). */
   async function reorderZones(baseZone: StorageZone, orderedIds: string[]) {
-    setZones((prev) => {
-      const next = prev.map((z) => {
+    setZones((prev) =>
+      prev.map((z) => {
         if (z.base_zone !== baseZone) return z;
         const idx = orderedIds.indexOf(z.id);
         if (idx < 0) return z;
         return { ...z, sort_order: idx };
-      });
-      return next;
-    });
+      }),
+    );
 
     const supabase = createClient();
-    await Promise.all(
+    const results = await Promise.all(
       orderedIds.map((id, sort_order) =>
         supabase.from("storage_zones").update({ sort_order }).eq("id", id),
       ),
     );
+    if (results.some((r) => r.error)) {
+      console.error("[home] reorder zones failed", results.map((r) => r.error));
+      showToast("칸 순서 저장에 실패했어요");
+      return;
+    }
     router.refresh();
+  }
+
+  function findPanelByDropKey(key: string): HomeZonePanel | null {
+    for (const list of [
+      panels.fridge,
+      panels.freezer,
+      panels.ambient,
+      panels.kimchi,
+    ]) {
+      const found = list.find((p) => p.key === key);
+      if (found) return found;
+    }
+    return null;
+  }
+
+  function panelSubZone(panel: HomeZonePanel): string | null {
+    if (panel.isVirtual && panel.label === UNASSIGNED_SUB_ZONE_LABEL) return null;
+    return panel.label;
+  }
+
+  async function moveItemToPanel(itemId: string, panel: HomeZonePanel) {
+    const zone = panel.baseZone;
+    const sub_zone = panelSubZone(panel);
+    const current = items.find((i) => i.id === itemId);
+    if (!current) return;
+    if (current.zone === zone && (current.sub_zone ?? null) === sub_zone) return;
+
+    const snapshot = current;
+    setItems((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, zone, sub_zone } : i)),
+    );
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("fridge_items")
+      .update({ zone, sub_zone })
+      .eq("id", itemId);
+    if (error) {
+      console.error("[home] move item:", error.message);
+      setItems((prev) =>
+        prev.map((i) => (i.id === itemId ? snapshot : i)),
+      );
+      showToast("재료 이동에 실패했어요");
+      return;
+    }
+    router.refresh();
+  }
+
+  function clearItemLongPress() {
+    if (itemLongPressTimer.current != null) {
+      window.clearTimeout(itemLongPressTimer.current);
+      itemLongPressTimer.current = null;
+    }
+  }
+
+  function hitTestDropTarget(clientX: number, clientY: number): string | null {
+    const ghost = document.getElementById("item-drag-ghost");
+    if (ghost) ghost.style.pointerEvents = "none";
+    const el = document.elementFromPoint(clientX, clientY);
+    if (ghost) ghost.style.pointerEvents = "";
+    const drop = el?.closest("[data-zone-drop-key]") as HTMLElement | null;
+    return drop?.dataset.zoneDropKey ?? null;
+  }
+
+  function onItemPointerDown(
+    item: FridgeItem,
+    e: ReactPointerEvent<HTMLElement>,
+  ) {
+    if (itemDragRef.current) return;
+    e.stopPropagation();
+    clearItemLongPress();
+    itemPointerOrigin.current = { x: e.clientX, y: e.clientY };
+    const target = e.currentTarget;
+    const pointerId = e.pointerId;
+    itemLongPressTimer.current = window.setTimeout(() => {
+      const rect = target.getBoundingClientRect();
+      const next: ItemDragState = {
+        item,
+        x: itemPointerOrigin.current.x,
+        y: itemPointerOrigin.current.y,
+        grabX: itemPointerOrigin.current.x - rect.left,
+        grabY: itemPointerOrigin.current.y - rect.top,
+        width: rect.width,
+        height: rect.height,
+      };
+      itemDragRef.current = next;
+      setItemDrag(next);
+      setDropTargetKey(null);
+      suppressItemClick.current = true;
+      try {
+        target.setPointerCapture(pointerId);
+      } catch {
+        // ignore
+      }
+    }, LONG_PRESS_MS);
+  }
+
+  function onItemPointerMove(e: ReactPointerEvent<HTMLElement>) {
+    e.stopPropagation();
+    if (!itemDragRef.current) {
+      const dx = e.clientX - itemPointerOrigin.current.x;
+      const dy = e.clientY - itemPointerOrigin.current.y;
+      if (Math.hypot(dx, dy) > 10) clearItemLongPress();
+      return;
+    }
+    const next = {
+      ...itemDragRef.current,
+      x: e.clientX,
+      y: e.clientY,
+    };
+    itemDragRef.current = next;
+    setItemDrag(next);
+    setDropTargetKey(hitTestDropTarget(e.clientX, e.clientY));
+  }
+
+  function onItemPointerUp(e: ReactPointerEvent<HTMLElement>) {
+    e.stopPropagation();
+    clearItemLongPress();
+    const dragging = itemDragRef.current;
+    if (!dragging) return;
+
+    const key = hitTestDropTarget(e.clientX, e.clientY);
+    itemDragRef.current = null;
+    setItemDrag(null);
+    setDropTargetKey(null);
+
+    const panel = key ? findPanelByDropKey(key) : null;
+    if (panel) {
+      void moveItemToPanel(dragging.item.id, panel);
+    }
+    window.setTimeout(() => {
+      suppressItemClick.current = false;
+    }, 0);
+  }
+
+  function onItemPointerCancel(e: ReactPointerEvent<HTMLElement>) {
+    e.stopPropagation();
+    clearItemLongPress();
+    itemDragRef.current = null;
+    setItemDrag(null);
+    setDropTargetKey(null);
+    window.setTimeout(() => {
+      suppressItemClick.current = false;
+    }, 0);
+  }
+
+  function onSelectItemSafe(item: FridgeItem) {
+    if (suppressItemClick.current || itemDragRef.current) return;
+    setSelectedItem(item);
   }
 
   async function handleManualAdd(payload: {
@@ -481,46 +656,98 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
                   panels={panels.fridge}
                   variant="fridge"
                   onAdd={openAdd}
-                  onSelectItem={setSelectedItem}
+                  onSelectItem={onSelectItemSafe}
                   onRename={openRename}
                   onReorder={(ids) => void reorderZones("냉장", ids)}
                   metaById={metaById}
+                  dropTargetKey={dropTargetKey}
+                  draggingItemId={itemDrag?.item.id ?? null}
+                  zoneDragDisabled={Boolean(itemDrag)}
+                  onItemPointerDown={onItemPointerDown}
+                  onItemPointerMove={onItemPointerMove}
+                  onItemPointerUp={onItemPointerUp}
+                  onItemPointerCancel={onItemPointerCancel}
                 />
                 <ZoneSection
                   title="냉동"
                   panels={panels.freezer}
                   variant="freezer"
                   onAdd={openAdd}
-                  onSelectItem={setSelectedItem}
+                  onSelectItem={onSelectItemSafe}
                   onRename={openRename}
                   onReorder={(ids) => void reorderZones("냉동", ids)}
                   metaById={metaById}
+                  dropTargetKey={dropTargetKey}
+                  draggingItemId={itemDrag?.item.id ?? null}
+                  zoneDragDisabled={Boolean(itemDrag)}
+                  onItemPointerDown={onItemPointerDown}
+                  onItemPointerMove={onItemPointerMove}
+                  onItemPointerUp={onItemPointerUp}
+                  onItemPointerCancel={onItemPointerCancel}
                 />
                 <ZoneSection
                   title="실온"
                   panels={panels.ambient}
                   variant="ambient"
                   onAdd={openAdd}
-                  onSelectItem={setSelectedItem}
+                  onSelectItem={onSelectItemSafe}
                   onRename={openRename}
                   onReorder={(ids) => void reorderZones("실온", ids)}
                   metaById={metaById}
+                  dropTargetKey={dropTargetKey}
+                  draggingItemId={itemDrag?.item.id ?? null}
+                  zoneDragDisabled={Boolean(itemDrag)}
+                  onItemPointerDown={onItemPointerDown}
+                  onItemPointerMove={onItemPointerMove}
+                  onItemPointerUp={onItemPointerUp}
+                  onItemPointerCancel={onItemPointerCancel}
                 />
                 <ZoneSection
                   title="김치냉장고"
                   panels={panels.kimchi}
                   variant="kimchi"
                   onAdd={openAdd}
-                  onSelectItem={setSelectedItem}
+                  onSelectItem={onSelectItemSafe}
                   onRename={openRename}
                   onReorder={(ids) => void reorderZones("김치냉장고", ids)}
                   metaById={metaById}
+                  dropTargetKey={dropTargetKey}
+                  draggingItemId={itemDrag?.item.id ?? null}
+                  zoneDragDisabled={Boolean(itemDrag)}
+                  onItemPointerDown={onItemPointerDown}
+                  onItemPointerMove={onItemPointerMove}
+                  onItemPointerUp={onItemPointerUp}
+                  onItemPointerCancel={onItemPointerCancel}
                 />
               </>
             )}
           </div>
         </div>
       </div>
+
+      {itemDrag && (
+        <div
+          id="item-drag-ghost"
+          className="pointer-events-none fixed z-[80] flex items-center gap-1.5 rounded-lg border border-primary/30 bg-white px-2 py-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.18)]"
+          style={{
+            left: itemDrag.x - itemDrag.grabX,
+            top: itemDrag.y - itemDrag.grabY,
+            width: itemDrag.width,
+            height: itemDrag.height,
+            transform: "scale(1.04) rotate(-1.5deg)",
+          }}
+        >
+          <FoodIcon
+            name={itemDrag.item.name}
+            category={itemDrag.item.category}
+            itemType={itemDrag.item.item_type}
+            size={18}
+          />
+          <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-foreground">
+            {itemDrag.item.name}
+          </span>
+        </div>
+      )}
 
       <button
         type="button"
@@ -722,9 +949,6 @@ const ZONE_THEME: Record<
   },
 };
 
-const LONG_PRESS_MS = 420;
-const FLIP_MS = 220;
-
 function ZoneSection({
   title,
   panels,
@@ -734,6 +958,13 @@ function ZoneSection({
   onRename,
   onReorder,
   metaById,
+  dropTargetKey,
+  draggingItemId,
+  zoneDragDisabled,
+  onItemPointerDown,
+  onItemPointerMove,
+  onItemPointerUp,
+  onItemPointerCancel,
 }: {
   title: string;
   panels: HomeZonePanel[];
@@ -743,8 +974,19 @@ function ZoneSection({
   onRename: (panel: HomeZonePanel) => void;
   onReorder: (orderedIds: string[]) => void;
   metaById: Record<string, ItemWithMeta>;
+  dropTargetKey: string | null;
+  draggingItemId: string | null;
+  zoneDragDisabled: boolean;
+  onItemPointerDown: (
+    item: FridgeItem,
+    e: ReactPointerEvent<HTMLElement>,
+  ) => void;
+  onItemPointerMove: (e: ReactPointerEvent<HTMLElement>) => void;
+  onItemPointerUp: (e: ReactPointerEvent<HTMLElement>) => void;
+  onItemPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void;
 }) {
   const [order, setOrder] = useState(panels);
+  const orderRef = useRef(panels);
   const dragId = useRef<string | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -756,7 +998,10 @@ function ZoneSection({
   const lastRects = useRef<Record<string, DOMRect>>({});
 
   useEffect(() => {
+    // Don't clobber in-progress drag order with a parent refresh.
+    if (dragId.current) return;
     setOrder(panels);
+    orderRef.current = panels;
   }, [panels]);
 
   function naturalRect(node: HTMLDivElement) {
@@ -811,7 +1056,6 @@ function ZoneSection({
       node.addEventListener("transitionend", clear);
     }
     lastRects.current = nextRects;
-    // Keep the dragged card glued to the finger after layout shifts.
     if (dragId.current) syncDragOffsetToFinger();
   }, [order]);
 
@@ -831,16 +1075,19 @@ function ZoneSection({
       const node = cardRefs.current[panel.id];
       if (!node) continue;
       rects[panel.id] =
-        panel.id === dragId.current ? naturalRect(node) : node.getBoundingClientRect();
+        panel.id === dragId.current
+          ? naturalRect(node)
+          : node.getBoundingClientRect();
     }
     lastRects.current = rects;
   }
 
-  function startLongPress(panel: HomeZonePanel, e: ReactPointerEvent) {
-    if (!panel.id) return;
+  function startZoneLongPress(panel: HomeZonePanel, e: ReactPointerEvent) {
+    if (!panel.id || zoneDragDisabled) return;
     clearLongPress();
     pointerOrigin.current = { x: e.clientX, y: e.clientY };
     lastPointer.current = { x: e.clientX, y: e.clientY };
+    const handle = e.currentTarget as HTMLElement;
     longPressTimer.current = window.setTimeout(() => {
       const node = cardRefs.current[panel.id!];
       if (!node) return;
@@ -854,7 +1101,7 @@ function ZoneSection({
       setDraggingId(panel.id);
       setDragOffset({ x: 0, y: 0 });
       try {
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        handle.setPointerCapture(e.pointerId);
       } catch {
         // ignore
       }
@@ -863,6 +1110,8 @@ function ZoneSection({
 
   function moveDragTo(targetId: string) {
     if (!dragId.current || dragId.current === targetId) return;
+    const target = orderRef.current.find((p) => p.id === targetId);
+    if (!target?.id) return;
     snapshotRects();
     setOrder((prev) => {
       const from = prev.findIndex((p) => p.id === dragId.current);
@@ -871,11 +1120,12 @@ function ZoneSection({
       const next = prev.slice();
       const [moved] = next.splice(from, 1);
       next.splice(to, 0, moved);
+      orderRef.current = next;
       return next;
     });
   }
 
-  function onPointerMove(e: ReactPointerEvent) {
+  function onZonePointerMove(e: ReactPointerEvent) {
     lastPointer.current = { x: e.clientX, y: e.clientY };
     if (!dragId.current) {
       const dx = e.clientX - pointerOrigin.current.x;
@@ -895,10 +1145,12 @@ function ZoneSection({
     if (targetId) moveDragTo(targetId);
   }
 
-  function endDrag() {
+  function endZoneDrag() {
     clearLongPress();
     if (!dragId.current) return;
-    const ids = order.map((p) => p.id).filter((id): id is string => Boolean(id));
+    const ids = orderRef.current
+      .map((p) => p.id)
+      .filter((id): id is string => Boolean(id));
     dragId.current = null;
     setDraggingId(null);
     setDragOffset({ x: 0, y: 0 });
@@ -913,24 +1165,35 @@ function ZoneSection({
       <div className="grid grid-cols-2 gap-2">
         {order.map((panel) => (
           <ZoneCard
-            key={panel.key}
+            key={panel.id ?? panel.key}
             panel={panel}
             variant={variant}
             dragging={draggingId === panel.id}
+            isDropTarget={dropTargetKey === panel.key}
             dragOffset={
               draggingId === panel.id ? dragOffset : { x: 0, y: 0 }
             }
             cardRef={(node) => {
               if (panel.id) cardRefs.current[panel.id] = node;
             }}
-            onAdd={() => onAdd(panel.baseZone, panel.label)}
+            onAdd={() =>
+              onAdd(
+                panel.baseZone,
+                panel.label === UNASSIGNED_SUB_ZONE_LABEL ? null : panel.label,
+              )
+            }
             onSelectItem={onSelectItem}
             onRename={() => onRename(panel)}
-            onPointerDownCard={(e) => startLongPress(panel, e)}
-            onPointerMoveCard={onPointerMove}
-            onPointerUpCard={endDrag}
-            onPointerCancelCard={endDrag}
+            onZoneHandlePointerDown={(e) => startZoneLongPress(panel, e)}
+            onZoneHandlePointerMove={onZonePointerMove}
+            onZoneHandlePointerUp={endZoneDrag}
+            onZoneHandlePointerCancel={endZoneDrag}
             metaById={metaById}
+            draggingItemId={draggingItemId}
+            onItemPointerDown={onItemPointerDown}
+            onItemPointerMove={onItemPointerMove}
+            onItemPointerUp={onItemPointerUp}
+            onItemPointerCancel={onItemPointerCancel}
           />
         ))}
       </div>
@@ -942,41 +1205,60 @@ function ZoneCard({
   panel,
   variant,
   dragging,
+  isDropTarget,
   dragOffset,
   cardRef,
   onAdd,
   onSelectItem,
   onRename,
-  onPointerDownCard,
-  onPointerMoveCard,
-  onPointerUpCard,
-  onPointerCancelCard,
+  onZoneHandlePointerDown,
+  onZoneHandlePointerMove,
+  onZoneHandlePointerUp,
+  onZoneHandlePointerCancel,
   metaById,
+  draggingItemId,
+  onItemPointerDown,
+  onItemPointerMove,
+  onItemPointerUp,
+  onItemPointerCancel,
 }: {
   panel: HomeZonePanel;
   variant: ZoneVariant;
   dragging: boolean;
+  isDropTarget: boolean;
   dragOffset: { x: number; y: number };
   cardRef: (node: HTMLDivElement | null) => void;
   onAdd: () => void;
   onSelectItem: (item: FridgeItem) => void;
   onRename: () => void;
-  onPointerDownCard: (e: ReactPointerEvent) => void;
-  onPointerMoveCard: (e: ReactPointerEvent) => void;
-  onPointerUpCard: () => void;
-  onPointerCancelCard: () => void;
+  onZoneHandlePointerDown: (e: ReactPointerEvent) => void;
+  onZoneHandlePointerMove: (e: ReactPointerEvent) => void;
+  onZoneHandlePointerUp: () => void;
+  onZoneHandlePointerCancel: () => void;
   metaById: Record<string, ItemWithMeta>;
+  draggingItemId: string | null;
+  onItemPointerDown: (
+    item: FridgeItem,
+    e: ReactPointerEvent<HTMLElement>,
+  ) => void;
+  onItemPointerMove: (e: ReactPointerEvent<HTMLElement>) => void;
+  onItemPointerUp: (e: ReactPointerEvent<HTMLElement>) => void;
+  onItemPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void;
 }) {
   const theme = ZONE_THEME[variant];
+  const canReorderZone = Boolean(panel.id) && !panel.isVirtual;
 
   return (
     <div
       ref={cardRef}
       data-zone-id={panel.id ?? undefined}
-      className={`relative flex touch-none flex-col rounded-xl border will-change-transform ${theme.card} ${
+      data-zone-drop-key={panel.key}
+      className={`relative flex flex-col rounded-xl border will-change-transform ${theme.card} ${
         dragging
           ? "z-30 shadow-[0_16px_32px_rgba(0,0,0,0.2)] ring-2 ring-primary/35"
-          : "z-0"
+          : isDropTarget
+            ? "z-20 ring-2 ring-primary/50 shadow-[0_0_0_3px_rgba(61,112,88,0.12)]"
+            : "z-0"
       }`}
       style={
         dragging
@@ -984,14 +1266,25 @@ function ZoneCard({
               transform: `translate(${dragOffset.x}px, ${dragOffset.y}px) scale(1.04)`,
               transition: "box-shadow 160ms ease",
             }
-          : undefined
+          : { transition: "box-shadow 160ms ease, ring-color 160ms ease" }
       }
-      onPointerDown={onPointerDownCard}
-      onPointerMove={onPointerMoveCard}
-      onPointerUp={onPointerUpCard}
-      onPointerCancel={onPointerCancelCard}
     >
-      <div className="flex items-center gap-1 px-2 pt-1.5 pb-1">
+      <div className="flex items-center gap-0.5 px-1.5 pt-1.5 pb-1">
+        {canReorderZone ? (
+          <button
+            type="button"
+            aria-label={`${panel.label} 순서 변경`}
+            className="touch-none flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground/80 active:bg-black/[0.04]"
+            onPointerDown={onZoneHandlePointerDown}
+            onPointerMove={onZoneHandlePointerMove}
+            onPointerUp={onZoneHandlePointerUp}
+            onPointerCancel={onZoneHandlePointerCancel}
+          >
+            <GripVertical size={14} />
+          </button>
+        ) : (
+          <span className="size-2 shrink-0" aria-hidden />
+        )}
         <p
           className={`min-w-0 flex-1 truncate text-[11px] font-semibold tracking-tight ${theme.title}`}
         >
@@ -1004,10 +1297,7 @@ function ZoneCard({
         </p>
         <button
           type="button"
-          onClick={(e) => {
-            e.stopPropagation();
-            onRename();
-          }}
+          onClick={onRename}
           onPointerDown={(e) => e.stopPropagation()}
           className="touch-target flex size-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground"
           aria-label={`${panel.label} 메뉴`}
@@ -1026,7 +1316,12 @@ function ZoneCard({
               item={item}
               meta={metaById[item.id]}
               variant={variant}
+              dragging={draggingItemId === item.id}
               onClick={() => onSelectItem(item)}
+              onPointerDown={(e) => onItemPointerDown(item, e)}
+              onPointerMove={onItemPointerMove}
+              onPointerUp={onItemPointerUp}
+              onPointerCancel={onItemPointerCancel}
             />
           ))
         )}
@@ -1049,12 +1344,22 @@ function ItemListRow({
   item,
   meta,
   variant,
+  dragging,
   onClick,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
+  onPointerCancel,
 }: {
   item: FridgeItem;
   meta?: ItemWithMeta;
   variant: ZoneVariant;
+  dragging: boolean;
   onClick: () => void;
+  onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void;
+  onPointerMove: (e: ReactPointerEvent<HTMLElement>) => void;
+  onPointerUp: (e: ReactPointerEvent<HTMLElement>) => void;
+  onPointerCancel: (e: ReactPointerEvent<HTMLElement>) => void;
 }) {
   const theme = ZONE_THEME[variant];
   const s = EXPIRY_STYLES[meta?.statusKey ?? "unset"];
@@ -1068,8 +1373,13 @@ function ItemListRow({
     <button
       type="button"
       onClick={onClick}
-      onPointerDown={(e: ReactPointerEvent) => e.stopPropagation()}
-      className={`flex h-9 w-full items-center gap-1.5 rounded-lg px-1.5 text-left transition-colors active:bg-black/[0.04] ${theme.rowHover}`}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      className={`flex h-9 w-full touch-none items-center gap-1.5 rounded-lg px-1.5 text-left transition-colors active:bg-black/[0.04] ${theme.rowHover} ${
+        dragging ? "opacity-30" : "opacity-100"
+      }`}
     >
       <FoodIcon
         name={item.name}

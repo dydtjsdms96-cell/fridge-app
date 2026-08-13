@@ -10,6 +10,9 @@ export const DEFAULT_HOME_ZONES: Array<{
   { base_zone: "냉동", label: "냉동실" },
 ];
 
+/** Items with null/unknown sub_zone land here — never follow sort_order of real zones. */
+export const UNASSIGNED_SUB_ZONE_LABEL = "미지정";
+
 export type HomeZonePanel = {
   key: string;
   id: string | null;
@@ -74,7 +77,9 @@ function panelsForBase(
 /**
  * Build home fridge panels from storage_zones + items.
  * - Empty storage_zones → needsStructureSetup (defaults only for item bucketing)
- * - Items with null/unknown sub_zone → first panel of that base_zone
+ * - Items match panels by sub_zone === label (zone is a container; reorder only changes sort_order)
+ * - Items with null/unknown sub_zone → "미지정" (must NOT follow first-by-sort_order, or
+ *   dragging a zone looks like only the nameplate moves while items stay put)
  * - 실온/김치 appear only when they have zones or items
  */
 export function buildHomeZonePanels(
@@ -90,7 +95,8 @@ export function buildHomeZonePanels(
     label: string,
     opts: { id: string | null; sortOrder: number; isVirtual: boolean },
   ) => {
-    const key = `${baseZone}:${label}`;
+    // Prefer stable id-based keys so React treats a zone as one container when reordering.
+    const key = opts.id ? `${baseZone}:${opts.id}` : `${baseZone}:${label}`;
     let panel = panels.find((p) => p.key === key);
     if (!panel) {
       panel = {
@@ -114,38 +120,42 @@ export function buildHomeZonePanels(
   }
 
   const labeledFor = (base: StorageZone) =>
-    panels.filter((p) => p.baseZone === base).map((p) => p.label);
+    panels
+      .filter(
+        (p) =>
+          p.baseZone === base &&
+          !p.isVirtual &&
+          p.label !== UNASSIGNED_SUB_ZONE_LABEL,
+      )
+      .map((p) => p.label);
 
   for (const item of items) {
     const labels = labeledFor(item.zone);
     const sub = item.sub_zone?.trim() || null;
 
     if (sub && labels.includes(sub)) {
+      const zoneRow = zoneRows.find(
+        (z) => z.base_zone === item.zone && z.label === sub,
+      );
       ensurePanel(item.zone, sub, {
-        id: null,
-        sortOrder: 999,
+        id: zoneRow?.id ?? null,
+        sortOrder: zoneRow?.sort_order ?? 999,
         isVirtual: false,
       }).items.push(item);
       continue;
     }
 
-    if (labels.length > 0) {
-      const first = panels
-        .filter((p) => p.baseZone === item.zone)
-        .sort((a, b) => a.sortOrder - b.sortOrder)[0]!;
-      first.items.push(item);
-      continue;
-    }
-
-    ensurePanel(item.zone, item.zone, {
+    // null / unknown sub_zone: keep out of reorderable zone slots
+    ensurePanel(item.zone, UNASSIGNED_SUB_ZONE_LABEL, {
       id: null,
-      sortOrder: 0,
+      sortOrder: 10_000,
       isVirtual: true,
     }).items.push(item);
   }
 
   const visible = panels.filter((p) => {
     if (p.items.length > 0) return true;
+    if (p.isVirtual && p.label === UNASSIGNED_SUB_ZONE_LABEL) return false;
     if (p.baseZone === "냉장" || p.baseZone === "냉동") return true;
     return !p.isVirtual;
   });
