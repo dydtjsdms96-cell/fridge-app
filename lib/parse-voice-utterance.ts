@@ -44,6 +44,11 @@ const UNIT_ALIASES: Array<[string, string]> = [
   ["모", "모"],
   ["쪽", "쪽"],
   ["컵", "컵"],
+  ["마리", "마리"],
+  ["단", "단"],
+  ["대", "대"],
+  ["캔", "캔"],
+  ["포기", "포기"],
   ["L", "L"],
   ["l", "L"],
   ["g", "g"],
@@ -54,6 +59,41 @@ const UNIT_PATTERN = UNIT_ALIASES.map(([a]) =>
   a.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
 ).join("|");
 
+/**
+ * Native Korean quantity words → Arabic numbers.
+ * Longer keys first so regex alternation prefers 다섯 over 다… patterns.
+ */
+const KOREAN_NATIVE_NUMBERS: Array<[string, number]> = [
+  ["스무", 20],
+  ["서른", 30],
+  ["마흔", 40],
+  ["쉰", 50],
+  ["예순", 60],
+  ["일흔", 70],
+  ["여든", 80],
+  ["아흔", 90],
+  ["스물", 20],
+  ["여덟", 8],
+  ["일곱", 7],
+  ["여섯", 6],
+  ["다섯", 5],
+  ["아홉", 9],
+  ["열", 10],
+  ["한", 1],
+  ["두", 2],
+  ["세", 3],
+  ["네", 4],
+];
+
+const KOREAN_NUMBER_PATTERN = KOREAN_NATIVE_NUMBERS.map(([w]) =>
+  w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+).join("|");
+
+const KOREAN_NUMBER_LOOKUP = new Map(KOREAN_NATIVE_NUMBERS);
+
+function parseKoreanNativeNumber(word: string): number | null {
+  return KOREAN_NUMBER_LOOKUP.get(word) ?? null;
+}
 const FROZEN_KEYWORDS = [
   "아이스크림",
   "냉동",
@@ -169,6 +209,7 @@ function enrich(name: string, quantity: number, unit: string): ParsedVoiceItem {
  * Parse a Korean fridge-add utterance into items.
  * Examples:
  * - "우유 1.8L 계란 10개 추가해줘"
+ * - "계란 두 개" / "대파 한 단" / "두부 세 모 우유 한 팩"
  * - "프레시포켓에 두부랑 대파 넣어줘"
  * - "1.8리터 우유"
  */
@@ -186,6 +227,22 @@ export function parseVoiceUtterance(raw: string): ParsedVoiceItem[] {
   function overlaps(start: number, end: number) {
     for (let i = start; i < end; i++) if (consumed[i]) return true;
     return false;
+  }
+
+  // name + native Korean qty + unit  (계란 두 개, 대파 한 단)
+  // Require a unit so bare words like "한강" are not treated as quantities.
+  const nameKoreanQtyRe = new RegExp(
+    `([가-힣A-Za-z][가-힣A-Za-z0-9]*)\\s*(${KOREAN_NUMBER_PATTERN})\\s*(${UNIT_PATTERN})`,
+    "gi",
+  );
+  for (const match of text.matchAll(nameKoreanQtyRe)) {
+    const start = match.index ?? 0;
+    const end = start + match[0].length;
+    if (overlaps(start, end)) continue;
+    const qty = parseKoreanNativeNumber(match[2]);
+    if (qty == null) continue;
+    mark(start, end);
+    items.push(enrich(match[1], qty, match[3]));
   }
 
   // name + quantity + optional unit  (우유 1.8L, 계란 10개)
@@ -224,6 +281,7 @@ export function parseVoiceUtterance(raw: string): ParsedVoiceItem[] {
   if (leftover) {
     for (const token of leftover.split(" ")) {
       if (!token || /^\d/.test(token)) continue;
+      if (parseKoreanNativeNumber(token) != null) continue;
       if (UNIT_ALIASES.some(([a]) => a.toLowerCase() === token.toLowerCase())) {
         continue;
       }
