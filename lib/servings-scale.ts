@@ -1,4 +1,4 @@
-export type ScaleMode = "linear" | "ceil" | "mild";
+export type ScaleMode = "linear" | "discrete" | "mild";
 
 /** 양념·소스·조미료 — mild 스케일 적용 */
 const MILD_KEYWORDS = [
@@ -35,7 +35,7 @@ const MILD_KEYWORDS = [
   "햇반",
 ] as const;
 
-/** 정수 개수로 취급하는 단위 */
+/** 개수 단위 — 비례 스케일 후 보기 좋게 반올림 */
 const DISCRETE_UNITS = new Set([
   "개",
   "캔",
@@ -44,13 +44,16 @@ const DISCRETE_UNITS = new Set([
   "장",
   "팩",
   "봉지",
+  "봉",
   "병",
   "모",
   "조각",
   "마리",
+  "대",
+  "단",
+  "사리",
 ]);
 
-/** 이름에 포함되면 ceil (계란 등) */
 const DISCRETE_NAME_KEYWORDS = ["계란", "달걀", "캔"] as const;
 
 export const SERVING_OPTIONS = [1, 2, 3, 4] as const;
@@ -70,9 +73,9 @@ export function detectScaleMode(
 
   const name = ingredientName.trim().toLowerCase();
   const u = (unit ?? "").trim().toLowerCase();
-  if (DISCRETE_UNITS.has(u)) return "ceil";
+  if (DISCRETE_UNITS.has(u)) return "discrete";
   if (DISCRETE_NAME_KEYWORDS.some((kw) => name.includes(kw.toLowerCase()))) {
-    return "ceil";
+    return "discrete";
   }
 
   return "linear";
@@ -96,13 +99,31 @@ function mildFactor(ratio: number): number {
 
 function roundNice(value: number): number {
   if (!Number.isFinite(value)) return 0;
+  if (Math.abs(value) >= 100) return Math.round(value);
   if (Math.abs(value) >= 10) return Math.round(value * 10) / 10;
   return Math.round(value * 100) / 100;
 }
 
 /**
+ * 개수 단위: 기준량×비율을 유지하되, 정수 기준량은 정수로,
+ * 소수 기준량(0.25개 등)은 비례값을 그대로 살려 인분 변화가 화면에 보이게 함.
+ */
+function scaleDiscrete(raw: number, ratio: number): number {
+  const scaled = raw * ratio;
+  if (!Number.isFinite(scaled) || scaled <= 0) return 0;
+
+  // 원래가 정수 개수면 결과도 정수 (최소 1은 강제하지 않음 — 0.5→1 인분 축소 허용)
+  if (Math.abs(raw - Math.round(raw)) < 1e-9 && raw >= 1) {
+    return Math.max(1, Math.round(scaled));
+  }
+
+  // 소수 기준량: 1/2, 1/4 등이 인분에 따라 달라지도록 roundNice
+  return roundNice(scaled);
+}
+
+/**
  * 기준 인분 재료량 → 목표 인분 재료량.
- * amount가 null이면 null 유지 (이름만 있는 재료).
+ * amount = 기준(base_servings)일 때 양. 비율 = target / base.
  */
 export function scaleIngredientAmount(
   amount: number | null | undefined,
@@ -118,20 +139,19 @@ export function scaleIngredientAmount(
   const base = normalizeBaseServings(opts.baseServings);
   const target = Math.max(1, Math.floor(Number(opts.targetServings) || 1));
   const ratio = target / base;
-  if (ratio === 1) return Number(amount);
+  const raw = Number(amount);
+  if (ratio === 1) return raw;
 
   const mode = detectScaleMode(opts.ingredientName, opts.unit);
-  const raw = Number(amount);
 
   if (mode === "mild") {
     return roundNice(raw * mildFactor(ratio));
   }
 
-  if (mode === "ceil") {
-    return Math.max(1, Math.ceil(raw * ratio - 1e-9));
+  if (mode === "discrete") {
+    return scaleDiscrete(raw, ratio);
   }
 
-  // linear
   return roundNice(raw * ratio);
 }
 
@@ -164,7 +184,7 @@ export function scaleRecipeIngredients<
     ingredient_name: ing.ingredient_name,
     unit: ing.unit,
     is_optional: ing.is_optional,
-    baseAmount: ing.amount,
+    baseAmount: ing.amount == null ? null : Number(ing.amount),
     scaledAmount: scaleIngredientAmount(ing.amount, {
       ingredientName: ing.ingredient_name,
       unit: ing.unit,

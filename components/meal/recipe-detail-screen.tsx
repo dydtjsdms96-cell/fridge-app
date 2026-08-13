@@ -246,7 +246,10 @@ export function RecipeDetailScreen({
                   몇 인분 만들까요?
                 </p>
                 <p className="mt-0.5 text-[10px] text-muted-foreground">
-                  기준 {baseServings}인분 · 양념은 완만하게 맞춰요
+                  기준 {baseServings}인분 · 재료량 ×
+                  {(servings / baseServings).toLocaleString("ko-KR", {
+                    maximumFractionDigits: 2,
+                  })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -319,6 +322,7 @@ export function RecipeDetailScreen({
             <button
               type="button"
               onClick={() => setUnitMode("natural")}
+              aria-pressed={unitMode === "natural"}
               className={`flex-1 rounded-[10px] py-2 text-[11px] font-semibold transition-colors ${
                 unitMode === "natural"
                   ? "bg-card text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
@@ -330,20 +334,21 @@ export function RecipeDetailScreen({
             <button
               type="button"
               onClick={() => setUnitMode("grams")}
+              aria-pressed={unitMode === "grams"}
               className={`flex-1 rounded-[10px] py-2 text-[11px] font-semibold transition-colors ${
                 unitMode === "grams"
                   ? "bg-card text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
                   : "text-muted-foreground"
               }`}
             >
-              g (그램)
+              g로 환산
             </button>
           </div>
-          {unitMode === "grams" && (
-            <p className="mt-1.5 text-[10px] leading-[14px] text-muted-foreground">
-              큰술≈15g · 작은술≈5g · 계란 1개≈55g 등 일반 계량 기준
-            </p>
-          )}
+          <p className="mt-1.5 text-[10px] leading-[14px] text-muted-foreground">
+            {unitMode === "grams"
+              ? "큰술·개·컵 등을 g으로 바꿔 보여요. (이미 g인 재료는 그대로)"
+              : "레시피 단위 그대로 · g≥1000은 kg, ml≥1000은 L로 표시"}
+          </p>
 
           <ul className="mt-3 space-y-2.5">
             {visibleIngredients.map((ing) => {
@@ -352,8 +357,17 @@ export function RecipeDetailScreen({
                 fridgeStock,
                 ing.scaledAmount,
               );
+              const amountLabel = formatIngredientAmountForMode(
+                ing.scaledAmount,
+                ing.unit,
+                ing.ingredient_name,
+                unitMode,
+              );
               return (
-                <li key={ing.id} className="flex items-center gap-3">
+                <li
+                  key={`${ing.id}-${servings}-${unitMode}-${ing.scaledAmount}`}
+                  className="flex items-center gap-3"
+                >
                   {owned ? (
                     <Check
                       size={16}
@@ -374,13 +388,8 @@ export function RecipeDetailScreen({
                     {owned ? "" : "[부족] "}
                     {ing.ingredient_name}
                   </span>
-                  <span className="shrink-0 text-[12px] tabular-nums text-muted-foreground">
-                    {formatIngredientAmountForMode(
-                      ing.scaledAmount,
-                      ing.unit,
-                      ing.ingredient_name,
-                      unitMode,
-                    )}
+                  <span className="shrink-0 text-[12px] font-semibold tabular-nums text-foreground/80">
+                    {amountLabel}
                   </span>
                 </li>
               );
