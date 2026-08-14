@@ -1,7 +1,8 @@
-import type { Recipe, RecipeIngredient } from "@/types/database";
+import type { DishType, Recipe, RecipeIngredient } from "@/types/database";
 import { isMildSeasoning } from "@/lib/servings-scale";
 
 export type RecipeFilter = "전체" | "냉털" | "+1";
+export type DishTypeFilter = DishType;
 
 export type FridgeStock = {
   name: string;
@@ -113,6 +114,7 @@ function toRecipeMatch(
       image_url: recipe.image_url,
       steps: recipe.steps,
       base_servings: recipe.base_servings ?? 1,
+      dish_type: recipe.dish_type ?? "메인요리",
       created_at: recipe.created_at,
     },
     ingredients,
@@ -162,8 +164,10 @@ export function buildRecipeMatches(
 export function filterRecipeMatches(
   matches: RecipeMatch[],
   filter: RecipeFilter,
+  dishType: DishTypeFilter = "메인요리",
 ): RecipeMatch[] {
-  if (filter === "냉털") return matches.filter((m) => m.group === "냉털");
-  if (filter === "+1") return matches.filter((m) => m.group === "+1");
-  return matches;
+  const byDish = matches.filter((m) => m.recipe.dish_type === dishType);
+  if (filter === "냉털") return byDish.filter((m) => m.group === "냉털");
+  if (filter === "+1") return byDish.filter((m) => m.group === "+1");
+  return byDish;
 }

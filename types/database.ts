@@ -8,6 +8,8 @@ export type FridgeInputMethod = "수동" | "음성" | "장보기전환" | "바�
 
 export type RecipeDifficulty = "쉬움" | "보통" | "어려움";
 
+export type DishType = "메인요리" | "밑반찬";
+
 export type MealType = "아침" | "점심" | "저녁";
 
 export type MealPlanStatus = "배치됨" | "완료" | "외식";
@@ -93,6 +95,8 @@ export interface Recipe {
   steps: RecipeStep[] | null;
   /** 재료량 기준 인분 (시드 기본 1) */
   base_servings: number;
+  /** 메인요리 | 밑반찬 */
+  dish_type: DishType;
   created_at: string | null;
 }
 

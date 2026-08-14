@@ -25,6 +25,7 @@ export default async function RecipeDetailPage({ params }: PageProps) {
         image_url,
         steps,
         base_servings,
+        dish_type,
         created_at,
         recipe_ingredients (
           id,
@@ -53,6 +54,7 @@ export default async function RecipeDetailPage({ params }: PageProps) {
   const recipe: Recipe = {
     ...rest,
     base_servings: rest.base_servings ?? 1,
+    dish_type: rest.dish_type ?? "메인요리",
   };
   const ingredients = recipe_ingredients ?? [];
   const fridgeItems = (fridgeRes.data ?? []) as FridgeItem[];

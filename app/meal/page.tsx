@@ -30,6 +30,7 @@ export default async function MealPage() {
         image_url,
         steps,
         base_servings,
+        dish_type,
         created_at,
         recipe_ingredients (
           id,

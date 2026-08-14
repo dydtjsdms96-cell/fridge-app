@@ -3,7 +3,11 @@
 import { useMemo, useState } from "react";
 import { UtensilsCrossed } from "lucide-react";
 import type { RecipeMatch, RecipeWithIngredients } from "@/lib/recipe-match";
-import { filterRecipeMatches, type RecipeFilter } from "@/lib/recipe-match";
+import {
+  filterRecipeMatches,
+  type DishTypeFilter,
+  type RecipeFilter,
+} from "@/lib/recipe-match";
 import { placeMealRecipe } from "@/lib/meal-actions";
 import type { MealPlanEntry } from "@/lib/meal-plan-types";
 import {
@@ -22,6 +26,11 @@ import {
   type SlotOccupant,
 } from "@/components/meal/meal-placement-sheet";
 import { EmptyState } from "@/components/ui/empty-state";
+
+const DISH_TYPE_TABS: { id: DishTypeFilter; label: string }[] = [
+  { id: "메인요리", label: "메인요리" },
+  { id: "밑반찬", label: "밑반찬" },
+];
 
 const FILTER_CHIPS: { id: RecipeFilter; label: string }[] = [
   { id: "전체", label: "전체" },
@@ -45,14 +54,20 @@ export function MealScreen({
   userId,
 }: MealScreenProps) {
   const [subTab, setSubTab] = useState<"recipes" | "planner">("recipes");
+  const [dishType, setDishType] = useState<DishTypeFilter>("메인요리");
   const [filter, setFilter] = useState<RecipeFilter>("전체");
   const [placing, setPlacing] = useState<RecipeMatch | null>(null);
   const [plans, setPlans] = useState<MealPlanEntry[]>(initialPlans);
 
   const filtered = useMemo(
-    () => filterRecipeMatches(matches, filter),
-    [matches, filter],
+    () => filterRecipeMatches(matches, filter, dishType),
+    [matches, filter, dishType],
   );
+
+  function selectDishType(next: DishTypeFilter) {
+    setDishType(next);
+    setFilter("전체");
+  }
 
   const defaultDay: WeekDay = todayWeekDay();
 
@@ -114,21 +129,46 @@ export function MealScreen({
 
       {subTab === "recipes" ? (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          <div className="flex shrink-0 gap-2 overflow-x-auto px-4 pb-4 scrollbar-hide sm:px-6 lg:px-8">
-            {FILTER_CHIPS.map((chip) => (
-              <button
-                key={chip.id}
-                type="button"
-                onClick={() => setFilter(chip.id)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all ${
-                  filter === chip.id
-                    ? "border-transparent bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.3)]"
-                    : "border-border bg-card text-muted-foreground"
-                }`}
-              >
-                {chip.label}
-              </button>
-            ))}
+          <div className="shrink-0 space-y-2.5 px-4 pb-4 sm:px-6 lg:px-8">
+            <div
+              className="flex gap-1 rounded-[14px] border border-border/70 bg-muted/70 p-1"
+              role="tablist"
+              aria-label="요리 종류"
+            >
+              {DISH_TYPE_TABS.map((tab) => (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={dishType === tab.id}
+                  onClick={() => selectDishType(tab.id)}
+                  className={`flex-1 rounded-[10px] py-2 text-[13px] font-semibold leading-[18px] transition-all ${
+                    dishType === tab.id
+                      ? "bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.08)]"
+                      : "text-muted-foreground"
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+              {FILTER_CHIPS.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  onClick={() => setFilter(chip.id)}
+                  className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all ${
+                    filter === chip.id
+                      ? "border-transparent bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.3)]"
+                      : "border-border bg-card text-muted-foreground"
+                  }`}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 scrollbar-hide sm:px-6 lg:px-8">
