@@ -4,6 +4,7 @@
  * Usage:
  *   node scripts/apply-step-placeholders.mjs --dry-run
  *   node scripts/apply-step-placeholders.mjs --apply
+ *   node scripts/apply-step-placeholders.mjs --apply --only=로제 떡볶이,카레라이스
  *
  * Requires .env.local: NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  */
@@ -15,7 +16,51 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, "..");
 
-const SKIP_TITLES = new Set(["무생채", "간장 불고기", "제육볶음"]);
+/**
+ * Sentence wording → recipe_ingredients.ingredient_name
+ * Keys = canonical DB names; values = alternate phrases found in steps.
+ */
+const INGREDIENT_ALIASES = {
+  체다치즈: ["슬라이스 치즈"],
+  닭고기: ["닭다리살", "닭다리순살"],
+  골뱅이통조림: ["통조림 골뱅이"],
+  카레가루: ["카레 가루"],
+};
+
+function labelsForIngredient(canonical) {
+  const aliases = INGREDIENT_ALIASES[canonical] ?? [];
+  // Longer labels first so "닭다리살" wins over a shorter accidental match
+  return [canonical, ...aliases].sort((a, b) => b.length - a.length);
+}
+
+/** Find the rightmost occurrence of canonical name or any alias in `before`. */
+function findIngredientLabel(before, canonical) {
+  let best = null;
+  for (const label of labelsForIngredient(canonical)) {
+    const idx = before.lastIndexOf(label);
+    if (idx < 0) continue;
+    if (
+      !best ||
+      idx > best.idx ||
+      (idx === best.idx && label.length > best.label.length)
+    ) {
+      best = { idx, label };
+    }
+  }
+  return best;
+}
+
+function parseOnlyTitles(argv) {
+  const arg = argv.find((a) => a.startsWith("--only="));
+  if (!arg) return null;
+  return new Set(
+    arg
+      .slice("--only=".length)
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+}
 
 function loadEnvLocal() {
   const p = path.join(ROOT, ".env.local");
@@ -219,12 +264,10 @@ function findReplacements(content, ingredients) {
       const unit = (ing.unit ?? "").trim();
       if (!Number.isFinite(amount) || amount <= 0 || !unit) continue;
 
-      // Exact name, or DB name is a head of a longer cook phrase (닭고기 ↔ 닭다리살 X —
-      // only allow when the step text contains the ingredient_name exactly).
-      const nameIdx = before.lastIndexOf(name);
-      if (nameIdx < 0) continue;
-      // name should be close to amount (allow short parenthetical like (불고기용))
-      const between = before.slice(nameIdx + name.length);
+      // Canonical name or configured alias (슬라이스 치즈 → 체다치즈, etc.)
+      const found = findIngredientLabel(before, name);
+      if (!found) continue;
+      const between = before.slice(found.idx + found.label.length);
       if (between.length > 28) continue;
 
       // Allow: "재료 1개(" before a parenthetical gram equivalent "150g)"
@@ -232,7 +275,7 @@ function findReplacements(content, ingredients) {
       const betweenNoParenOpen = between.replace(/\([^)]*$/g, "");
       const stripped = betweenNoParenOpen.replace(/\([^)]*\)/g, "");
       const parenEquivalent =
-        /^\s*(?:\d+(?:\.\d+)?|\d+\s*\/\s*\d+|½|¼|¾|⅓|⅔)\s*(?:큰술|작은술|개|컵|모|대|공기|g|그램)?\s*\(\s*$/.test(
+        /^\s*(?:\d+(?:\.\d+)?|\d+\s*\/\s*\d+|½|¼|¾|⅓|⅔)\s*(?:큰술|작은술|개|컵|모|대|공기|캔|장|g|그램)?\s*\(\s*$/.test(
           between,
         ) || /^\s*\(\s*$/.test(between);
       if (/\d/.test(stripped) && !parenEquivalent) continue;
@@ -291,9 +334,11 @@ function findReplacements(content, ingredients) {
       }
     } else {
       // amount+unit present near some ingredient name but no amount match — or orphan
-      const nearName = ingredients.find((ing) =>
-        before.includes(ing.ingredient_name),
-      );
+      const nearName = ingredients.find((ing) => {
+        const n = ing.ingredient_name;
+        if (!n) return false;
+        return findIngredientLabel(before, n) != null;
+      });
       if (nearName) {
         skipped.push({
           reason: "재료명 근처이나 수량/단위가 recipe_ingredients와 불일치",
@@ -364,6 +409,7 @@ function findReplacements(content, ingredients) {
 async function main() {
   const apply = process.argv.includes("--apply");
   const dryRun = !apply;
+  const onlyTitles = parseOnlyTitles(process.argv);
 
   const env = loadEnvLocal();
   const url = env.NEXT_PUBLIC_SUPABASE_URL;
@@ -402,6 +448,8 @@ async function main() {
   const updates = [];
 
   for (const recipe of recipes ?? []) {
+    if (onlyTitles && !onlyTitles.has(recipe.title)) continue;
+
     const ingredients = recipe.recipe_ingredients ?? [];
     const steps = Array.isArray(recipe.steps) ? recipe.steps : [];
     let changedSentences = 0;
