@@ -13,12 +13,21 @@ export const DEFAULT_HOME_ZONES: Array<{
 /** Items with null/unknown sub_zone land here — never follow sort_order of real zones. */
 export const UNASSIGNED_SUB_ZONE_LABEL = "미지정";
 
+export type ZoneWidth = 1 | 2;
+
+export function normalizeZoneWidth(
+  value: number | null | undefined,
+): ZoneWidth {
+  return value === 2 ? 2 : 1;
+}
+
 export type HomeZonePanel = {
   key: string;
   id: string | null;
   baseZone: StorageZone;
   label: string;
   sortOrder: number;
+  width: ZoneWidth;
   /** true when label comes from DEFAULT_HOME_ZONES, not DB */
   isVirtual: boolean;
   items: FridgeItem[];
@@ -41,6 +50,7 @@ function panelsForBase(
   id: string | null;
   label: string;
   sortOrder: number;
+  width: ZoneWidth;
   isVirtual: boolean;
 }> {
   const labels = zoneRows
@@ -55,6 +65,7 @@ function panelsForBase(
       id: z.id,
       label: z.label,
       sortOrder: z.sort_order ?? 0,
+      width: normalizeZoneWidth(z.width),
       isVirtual: false,
     }));
 
@@ -66,6 +77,7 @@ function panelsForBase(
         id: null,
         label: z.label,
         sortOrder: i,
+        width: 1 as ZoneWidth,
         isVirtual: true,
       }),
     );
@@ -93,7 +105,12 @@ export function buildHomeZonePanels(
   const ensurePanel = (
     baseZone: StorageZone,
     label: string,
-    opts: { id: string | null; sortOrder: number; isVirtual: boolean },
+    opts: {
+      id: string | null;
+      sortOrder: number;
+      width: ZoneWidth;
+      isVirtual: boolean;
+    },
   ) => {
     // Prefer stable id-based keys so React treats a zone as one container when reordering.
     const key = opts.id ? `${baseZone}:${opts.id}` : `${baseZone}:${label}`;
@@ -105,10 +122,14 @@ export function buildHomeZonePanels(
         baseZone,
         label,
         sortOrder: opts.sortOrder,
+        width: opts.width,
         isVirtual: opts.isVirtual,
         items: [],
       };
       panels.push(panel);
+    } else {
+      panel.width = opts.width;
+      panel.sortOrder = opts.sortOrder;
     }
     return panel;
   };
@@ -140,6 +161,7 @@ export function buildHomeZonePanels(
       ensurePanel(item.zone, sub, {
         id: zoneRow?.id ?? null,
         sortOrder: zoneRow?.sort_order ?? 999,
+        width: normalizeZoneWidth(zoneRow?.width),
         isVirtual: false,
       }).items.push(item);
       continue;
@@ -149,6 +171,7 @@ export function buildHomeZonePanels(
     ensurePanel(item.zone, UNASSIGNED_SUB_ZONE_LABEL, {
       id: null,
       sortOrder: 10_000,
+      width: 2,
       isVirtual: true,
     }).items.push(item);
   }

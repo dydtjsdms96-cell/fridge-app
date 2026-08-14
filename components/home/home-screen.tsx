@@ -33,7 +33,9 @@ import { createClient } from "@/lib/supabase";
 import {
   UNASSIGNED_SUB_ZONE_LABEL,
   buildHomeZonePanels,
+  normalizeZoneWidth,
   type HomeZonePanel,
+  type ZoneWidth,
 } from "@/lib/home-zones";
 import {
   SaveCancelledError,
@@ -112,6 +114,10 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
   const [renameTarget, setRenameTarget] = useState<HomeZonePanel | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
   const [renaming, setRenaming] = useState(false);
+  const [zoneMenuTarget, setZoneMenuTarget] = useState<HomeZonePanel | null>(
+    null,
+  );
+  const [widthBusy, setWidthBusy] = useState(false);
   const [itemDrag, setItemDrag] = useState<ItemDragState | null>(null);
   const [dropTargetKey, setDropTargetKey] = useState<string | null>(null);
   const itemDragRef = useRef<ItemDragState | null>(null);
@@ -164,13 +170,52 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
     setAddTarget({ zone, subZone });
   }
 
+  function openZoneMenu(panel: HomeZonePanel) {
+    if (!panel.id || panel.isVirtual) {
+      showToast("구조 편집에서 칸을 만든 뒤 편집할 수 있어요");
+      return;
+    }
+    setZoneMenuTarget(panel);
+  }
+
   function openRename(panel: HomeZonePanel) {
     if (!panel.id || panel.isVirtual) {
       showToast("구조 편집에서 칸을 만든 뒤 이름을 바꿀 수 있어요");
       return;
     }
+    setZoneMenuTarget(null);
     setRenameTarget(panel);
     setRenameDraft(panel.label);
+  }
+
+  async function toggleZoneWidth(panel: HomeZonePanel) {
+    if (!panel.id || widthBusy) return;
+    const next: ZoneWidth = normalizeZoneWidth(panel.width) === 2 ? 1 : 2;
+    setWidthBusy(true);
+    setZoneMenuTarget(null);
+    setZones((prev) =>
+      prev.map((z) => (z.id === panel.id ? { ...z, width: next } : z)),
+    );
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("storage_zones")
+      .update({ width: next })
+      .eq("id", panel.id);
+    if (error) {
+      console.error("[home] zone width:", error.message);
+      setZones((prev) =>
+        prev.map((z) =>
+          z.id === panel.id
+            ? { ...z, width: normalizeZoneWidth(panel.width) }
+            : z,
+        ),
+      );
+      showToast("너비 변경에 실패했어요");
+    } else {
+      showToast(next === 2 ? "2칸 너비로 바꿨어요" : "1칸 너비로 바꿨어요");
+      router.refresh();
+    }
+    setWidthBusy(false);
   }
 
   async function submitRename() {
@@ -657,7 +702,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
                   variant="fridge"
                   onAdd={openAdd}
                   onSelectItem={onSelectItemSafe}
-                  onRename={openRename}
+                  onRename={openZoneMenu}
                   onReorder={(ids) => void reorderZones("냉장", ids)}
                   metaById={metaById}
                   dropTargetKey={dropTargetKey}
@@ -674,7 +719,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
                   variant="freezer"
                   onAdd={openAdd}
                   onSelectItem={onSelectItemSafe}
-                  onRename={openRename}
+                  onRename={openZoneMenu}
                   onReorder={(ids) => void reorderZones("냉동", ids)}
                   metaById={metaById}
                   dropTargetKey={dropTargetKey}
@@ -691,7 +736,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
                   variant="ambient"
                   onAdd={openAdd}
                   onSelectItem={onSelectItemSafe}
-                  onRename={openRename}
+                  onRename={openZoneMenu}
                   onReorder={(ids) => void reorderZones("실온", ids)}
                   metaById={metaById}
                   dropTargetKey={dropTargetKey}
@@ -708,7 +753,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
                   variant="kimchi"
                   onAdd={openAdd}
                   onSelectItem={onSelectItemSafe}
-                  onRename={openRename}
+                  onRename={openZoneMenu}
                   onReorder={(ids) => void reorderZones("김치냉장고", ids)}
                   metaById={metaById}
                   dropTargetKey={dropTargetKey}
@@ -825,6 +870,52 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
           onRemove={handleRemove}
           onSaveExpires={handleSaveExpires}
         />
+      )}
+
+      {zoneMenuTarget && (
+        <div
+          className="absolute inset-0 z-50 flex items-end bg-black/40 p-4"
+          onClick={() => setZoneMenuTarget(null)}
+        >
+          <div
+            className="w-full rounded-2xl bg-card p-2 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${zoneMenuTarget.label} 메뉴`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p className="px-3 pt-2 pb-1 text-[12px] font-semibold text-muted-foreground">
+              {zoneMenuTarget.label}
+            </p>
+            <button
+              type="button"
+              onClick={() => openRename(zoneMenuTarget)}
+              className="flex w-full items-center rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-foreground transition-colors active:bg-muted"
+            >
+              이름 변경
+            </button>
+            <button
+              type="button"
+              disabled={widthBusy}
+              onClick={() => void toggleZoneWidth(zoneMenuTarget)}
+              className="flex w-full items-center justify-between rounded-xl px-3 py-3 text-left text-[14px] font-semibold text-foreground transition-colors active:bg-muted disabled:opacity-50"
+            >
+              <span>너비 변경</span>
+              <span className="text-[12px] font-medium text-muted-foreground">
+                {normalizeZoneWidth(zoneMenuTarget.width) === 2
+                  ? "2칸 → 1칸"
+                  : "1칸 → 2칸"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setZoneMenuTarget(null)}
+              className="mt-1 flex w-full items-center justify-center rounded-xl bg-muted px-3 py-3 text-[13px] font-semibold text-foreground"
+            >
+              닫기
+            </button>
+          </div>
+        </div>
       )}
 
       {renameTarget && (
@@ -1253,7 +1344,9 @@ function ZoneCard({
       ref={cardRef}
       data-zone-id={panel.id ?? undefined}
       data-zone-drop-key={panel.key}
-      className={`relative flex flex-col rounded-xl border will-change-transform ${theme.card} ${
+      className={`relative flex flex-col rounded-xl border will-change-transform ${
+        panel.width === 2 ? "col-span-2" : "col-span-1"
+      } ${theme.card} ${
         dragging
           ? "z-30 shadow-[0_16px_32px_rgba(0,0,0,0.2)] ring-2 ring-primary/35"
           : isDropTarget

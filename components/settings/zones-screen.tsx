@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronLeft, Plus, Snowflake, Thermometer, Box } from "lucide-react";
 import { createClient } from "@/lib/supabase";
+import {
+  normalizeZoneWidth,
+  type ZoneWidth,
+} from "@/lib/home-zones";
 import type { StorageZone, StorageZoneRow } from "@/types/database";
 import { SwipeDeleteRow } from "@/components/settings/swipe-delete-row";
 import { Toast, useToast } from "@/components/ui/toast";
@@ -25,11 +29,52 @@ type ZonesScreenProps = {
   initialZones: StorageZoneRow[];
 };
 
+function WidthToggle({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: ZoneWidth;
+  onChange: (next: ZoneWidth) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      className="flex rounded-xl border border-border bg-muted/60 p-0.5"
+      role="group"
+      aria-label="칸 너비"
+    >
+      {(
+        [
+          { w: 1 as const, label: "1칸 너비" },
+          { w: 2 as const, label: "2칸 너비" },
+        ] as const
+      ).map((opt) => (
+        <button
+          key={opt.w}
+          type="button"
+          disabled={disabled}
+          aria-pressed={value === opt.w}
+          onClick={() => onChange(opt.w)}
+          className={`flex-1 rounded-[10px] py-2 text-[11px] font-semibold transition-colors disabled:opacity-50 ${
+            value === opt.w
+              ? "bg-card text-foreground shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+              : "text-muted-foreground"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
   const router = useRouter();
   const [items, setItems] = useState(initialZones);
   const [addingFor, setAddingFor] = useState<StorageZone | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
+  const [draftWidth, setDraftWidth] = useState<ZoneWidth>(1);
   const [busy, setBusy] = useState(false);
   const { message, showToast } = useToast(2000);
 
@@ -50,8 +95,8 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
     return map;
   }, [items]);
 
-  function notify(message: string) {
-    showToast(message);
+  function notify(msg: string) {
+    showToast(msg);
   }
 
   async function addLabel(baseZone: StorageZone) {
@@ -60,10 +105,9 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
     setBusy(true);
     const supabase = createClient();
     const nextOrder =
-      items.filter((z) => z.base_zone === baseZone).reduce(
-        (max, z) => Math.max(max, z.sort_order ?? 0),
-        -1,
-      ) + 1;
+      items
+        .filter((z) => z.base_zone === baseZone)
+        .reduce((max, z) => Math.max(max, z.sort_order ?? 0), -1) + 1;
     const { data, error } = await supabase
       .from("storage_zones")
       .insert({
@@ -71,6 +115,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
         base_zone: baseZone,
         label,
         sort_order: nextOrder,
+        width: draftWidth,
       })
       .select("*")
       .single();
@@ -82,6 +127,33 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
       setItems((prev) => [...prev, data as StorageZoneRow]);
       setAddingFor(null);
       setDraftLabel("");
+      setDraftWidth(1);
+      router.refresh();
+    }
+    setBusy(false);
+  }
+
+  async function setWidth(id: string, width: ZoneWidth) {
+    if (busy) return;
+    const current = items.find((z) => z.id === id);
+    if (!current || normalizeZoneWidth(current.width) === width) return;
+    setBusy(true);
+    const snapshot = current.width;
+    setItems((prev) =>
+      prev.map((z) => (z.id === id ? { ...z, width } : z)),
+    );
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("storage_zones")
+      .update({ width })
+      .eq("id", id);
+    if (error) {
+      console.error("[zones] width:", error.message);
+      setItems((prev) =>
+        prev.map((z) => (z.id === id ? { ...z, width: snapshot } : z)),
+      );
+      notify("너비 변경에 실패했어요");
+    } else {
       router.refresh();
     }
     setBusy(false);
@@ -115,10 +187,10 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
         </button>
         <div className="min-w-0 flex-1">
           <h1 className="text-[22px] font-bold leading-[27.5px] text-foreground">
-            구역 설정
+            구조 편집
           </h1>
           <p className="text-[11px] text-muted-foreground">
-            보관 구역별 하위 칸을 관리해요
+            칸 이름과 너비(1칸/2칸)를 관리해요
           </p>
         </div>
       </div>
@@ -146,6 +218,7 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
                   onClick={() => {
                     setAddingFor(zone);
                     setDraftLabel("");
+                    setDraftWidth(1);
                   }}
                   className="flex items-center gap-1 rounded-full bg-secondary px-2.5 py-1 text-[11px] font-semibold text-primary"
                 >
@@ -155,22 +228,39 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
               </div>
 
               <div className="space-y-2">
-                {rows.map((row) => (
-                  <SwipeDeleteRow
-                    key={row.id}
-                    disabled={busy}
-                    onDelete={() => void deleteZone(row.id)}
-                  >
-                    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 shadow-[0_2px_6px_rgba(0,0,0,0.05)]">
-                      <span className="flex size-8 items-center justify-center rounded-xl bg-[#edf3ef] text-primary">
-                        <meta.Icon size={14} />
-                      </span>
-                      <span className="text-[13px] font-medium text-foreground">
-                        {row.label}
-                      </span>
-                    </div>
-                  </SwipeDeleteRow>
-                ))}
+                {rows.map((row) => {
+                  const width = normalizeZoneWidth(row.width);
+                  return (
+                    <SwipeDeleteRow
+                      key={row.id}
+                      disabled={busy}
+                      onDelete={() => void deleteZone(row.id)}
+                    >
+                      <div className="rounded-2xl border border-border bg-card px-4 py-3 shadow-[0_2px_6px_rgba(0,0,0,0.05)]">
+                        <div className="flex items-center gap-3">
+                          <span className="flex size-8 items-center justify-center rounded-xl bg-[#edf3ef] text-primary">
+                            <meta.Icon size={14} />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[13px] font-medium text-foreground">
+                              {row.label}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {width === 2 ? "2칸 너비 · 전체 폭" : "1칸 너비 · 절반 폭"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="mt-2.5">
+                          <WidthToggle
+                            value={width}
+                            disabled={busy}
+                            onChange={(next) => void setWidth(row.id, next)}
+                          />
+                        </div>
+                      </div>
+                    </SwipeDeleteRow>
+                  );
+                })}
 
                 {rows.length === 0 && addingFor !== zone && (
                   <div className="rounded-2xl border border-dashed border-border px-4 py-4 text-center text-[11px] text-muted-foreground">
@@ -190,7 +280,11 @@ export function ZonesScreen({ userId, initialZones }: ZonesScreenProps) {
                         if (e.key === "Enter") void addLabel(zone);
                       }}
                     />
-                    <div className="grid grid-cols-2 gap-2">
+                    <p className="mb-1.5 text-[10px] font-semibold text-muted-foreground">
+                      너비
+                    </p>
+                    <WidthToggle value={draftWidth} onChange={setDraftWidth} />
+                    <div className="mt-2.5 grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => setAddingFor(null)}

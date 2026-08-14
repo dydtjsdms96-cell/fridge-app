@@ -147,6 +147,7 @@ create table storage_zones (
   base_zone text not null check (base_zone in ('냉장','냉동','실온','김치냉장고')),
   label text not null,
   sort_order integer not null default 0,
+  width integer not null default 1 check (width in (1, 2)),
   created_at timestamptz default now()
 );
 

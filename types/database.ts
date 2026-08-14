@@ -48,6 +48,8 @@ export interface StorageZoneRow {
   base_zone: StorageZone;
   label: string;
   sort_order: number;
+  /** Grid column span: 1 = half row, 2 = full row */
+  width: 1 | 2;
   created_at: string | null;
 }
 
