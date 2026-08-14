@@ -43,14 +43,20 @@ type RecipeDetailScreenProps = {
   recipe: Recipe;
   ingredients: RecipeIngredient[];
   fridgeItems: FridgeItem[];
+  currentUserId?: string;
 };
 
 export function RecipeDetailScreen({
   recipe,
   ingredients,
   fridgeItems,
+  currentUserId,
 }: RecipeDetailScreenProps) {
   const router = useRouter();
+  const isOwner =
+    recipe.source === "user" &&
+    !!currentUserId &&
+    recipe.user_id === currentUserId;
   const baseServings = normalizeBaseServings(recipe.base_servings);
   const [servings, setServings] = useState<ServingOption>(() => {
     const matched = SERVING_OPTIONS.find((n) => n === baseServings);
@@ -88,6 +94,7 @@ export function RecipeDetailScreen({
   const [showCookedSheet, setShowCookedSheet] = useState(false);
   const [busy, setBusy] = useState(false);
   const [unitMode, setUnitMode] = useState<AmountUnitMode>("natural");
+  const [deleting, setDeleting] = useState(false);
 
   const doneCount = checkedSteps.size;
   const totalSteps = steps.length;
@@ -102,6 +109,31 @@ export function RecipeDetailScreen({
       })),
     [steps, scaledIngredients, unitMode],
   );
+
+  async function handleDeleteRecipe() {
+    if (!isOwner || deleting) return;
+    const ok = window.confirm(
+      `"${recipe.title}" 레시피를 삭제할까요? 이 작업은 되돌릴 수 없어요.`,
+    );
+    if (!ok) return;
+    setDeleting(true);
+    try {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("recipes")
+        .delete()
+        .eq("id", recipe.id)
+        .eq("user_id", currentUserId!);
+      if (error) {
+        window.alert(error.message);
+        return;
+      }
+      router.push("/meal");
+      router.refresh();
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   function bumpServings(delta: number) {
     setServings((prev) => {
@@ -227,12 +259,38 @@ export function RecipeDetailScreen({
           >
             <ChevronLeft size={20} />
           </button>
+          {isOwner && (
+            <div className="absolute top-3 right-3 z-10 flex gap-1.5">
+              <button
+                type="button"
+                onClick={() => router.push(`/meal/write?edit=${recipe.id}`)}
+                className="rounded-full bg-card/90 px-3.5 py-2 text-[12px] font-semibold text-foreground shadow-sm backdrop-blur-sm transition-transform active:scale-95"
+              >
+                수정
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => void handleDeleteRecipe()}
+                className="rounded-full bg-card/90 px-3.5 py-2 text-[12px] font-semibold text-[#c04d38] shadow-sm backdrop-blur-sm transition-transform active:scale-95 disabled:opacity-50"
+              >
+                {deleting ? "삭제 중…" : "삭제"}
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="px-5 pt-5 pb-4">
-          <h1 className="text-[24px] leading-[30px] font-bold text-foreground">
-            {recipe.title}
-          </h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-[24px] leading-[30px] font-bold text-foreground">
+              {recipe.title}
+            </h1>
+            {recipe.source === "user" && (
+              <span className="rounded-full border border-border bg-muted px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                내 레시피
+              </span>
+            )}
+          </div>
           <div className="mt-2 flex items-center gap-4 text-[13px] text-muted-foreground">
             {recipe.cook_minutes != null && (
               <span className="flex items-center gap-1.5">

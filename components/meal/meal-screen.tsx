@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { UtensilsCrossed } from "lucide-react";
+import Link from "next/link";
+import { Plus, UtensilsCrossed } from "lucide-react";
 import type { RecipeMatch, RecipeWithIngredients } from "@/lib/recipe-match";
 import {
   filterRecipeMatches,
@@ -153,21 +154,30 @@ export function MealScreen({
               ))}
             </div>
 
-            <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-              {FILTER_CHIPS.map((chip) => (
-                <button
-                  key={chip.id}
-                  type="button"
-                  onClick={() => setFilter(chip.id)}
-                  className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all ${
-                    filter === chip.id
-                      ? "border-transparent bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.3)]"
-                      : "border-border bg-card text-muted-foreground"
-                  }`}
-                >
-                  {chip.label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2">
+              <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto scrollbar-hide">
+                {FILTER_CHIPS.map((chip) => (
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setFilter(chip.id)}
+                    className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all ${
+                      filter === chip.id
+                        ? "border-transparent bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.3)]"
+                        : "border-border bg-card text-muted-foreground"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
+                ))}
+              </div>
+              <Link
+                href="/meal/write"
+                className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-secondary px-3 py-1.5 text-[12px] font-bold text-primary shadow-[0_1px_4px_rgba(61,112,88,0.12)] transition-transform active:scale-95"
+              >
+                <Plus size={14} strokeWidth={2.5} aria-hidden />
+                내 레시피
+              </Link>
             </div>
           </div>
 

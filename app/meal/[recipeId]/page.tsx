@@ -26,6 +26,8 @@ export default async function RecipeDetailPage({ params }: PageProps) {
         steps,
         base_servings,
         dish_type,
+        source,
+        user_id,
         created_at,
         recipe_ingredients (
           id,
@@ -55,6 +57,8 @@ export default async function RecipeDetailPage({ params }: PageProps) {
     ...rest,
     base_servings: rest.base_servings ?? 1,
     dish_type: rest.dish_type ?? "메인요리",
+    source: rest.source ?? "system",
+    user_id: rest.user_id ?? null,
   };
   const ingredients = recipe_ingredients ?? [];
   const fridgeItems = (fridgeRes.data ?? []) as FridgeItem[];
@@ -65,6 +69,7 @@ export default async function RecipeDetailPage({ params }: PageProps) {
         recipe={recipe}
         ingredients={ingredients}
         fridgeItems={fridgeItems}
+        currentUserId={user.id}
       />
     </AppShell>
   );

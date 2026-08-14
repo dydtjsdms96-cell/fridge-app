@@ -50,6 +50,11 @@ export function RecipeCard({ match, onAdd }: RecipeCardProps) {
               재료 +1개
             </span>
           )}
+          {recipe.source === "user" && (
+            <span className="absolute top-2.5 right-2.5 rounded-full bg-card/95 px-2 py-1 text-[10px] font-semibold leading-[15px] text-foreground shadow-sm backdrop-blur-sm">
+              내 레시피
+            </span>
+          )}
         </div>
       </Link>
 

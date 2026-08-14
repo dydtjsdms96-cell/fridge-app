@@ -10,6 +10,8 @@ export type RecipeDifficulty = "쉬움" | "보통" | "어려움";
 
 export type DishType = "메인요리" | "밑반찬";
 
+export type RecipeSource = "system" | "user";
+
 export type MealType = "아침" | "점심" | "저녁";
 
 export type MealPlanStatus = "배치됨" | "완료" | "외식";
@@ -97,6 +99,10 @@ export interface Recipe {
   base_servings: number;
   /** 메인요리 | 밑반찬 */
   dish_type: DishType;
+  /** system | user */
+  source: RecipeSource;
+  /** user 레시피 작성자 (system이면 null) */
+  user_id: string | null;
   created_at: string | null;
 }
 

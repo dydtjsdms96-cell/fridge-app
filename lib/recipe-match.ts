@@ -115,6 +115,8 @@ function toRecipeMatch(
       steps: recipe.steps,
       base_servings: recipe.base_servings ?? 1,
       dish_type: recipe.dish_type ?? "메인요리",
+      source: recipe.source ?? "system",
+      user_id: recipe.user_id ?? null,
       created_at: recipe.created_at,
     },
     ingredients,
