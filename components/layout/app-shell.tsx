@@ -30,7 +30,10 @@ export function AppShell({
   const showTabBar = !hideTabBar && !immersive;
 
   return (
-    <div className="relative mx-auto flex h-dvh max-h-dvh w-full max-w-full flex-col overflow-hidden bg-background">
+    <div
+      data-app-shell
+      className="relative mx-auto flex h-dvh max-h-dvh w-full max-w-full flex-col overflow-hidden bg-background"
+    >
       <div className="relative z-0 flex min-h-0 flex-1 flex-col overflow-hidden">
         {children}
       </div>

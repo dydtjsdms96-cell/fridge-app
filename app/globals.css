@@ -154,3 +154,14 @@ body {
 #barcode-scanner-region img {
   display: none !important;
 }
+
+/* Native ML Kit barcode: camera renders behind a transparent WebView */
+html.barcode-scanner-active,
+html.barcode-scanner-active body {
+  background: transparent !important;
+}
+
+html.barcode-scanner-active [data-app-shell] {
+  background: transparent !important;
+}
+

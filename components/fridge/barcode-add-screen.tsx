@@ -17,6 +17,11 @@ import {
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 import { Toast, useToast } from "@/components/ui/toast";
 import { useImmersiveMode } from "@/components/layout/immersive-mode";
+import {
+  isNativeBarcodePlatform,
+  startNativeBarcodeScan,
+  stopNativeBarcodeScan,
+} from "@/lib/barcode-scan";
 
 const SCANNER_ID = "barcode-scanner-region";
 
@@ -50,6 +55,7 @@ export function BarcodeAddScreen() {
   const { resolveDuplicate, dialog: duplicateDialog } = useDuplicateItemPrompt();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const handledRef = useRef(false);
+  const nativeModeRef = useRef(false);
   const [scanning, setScanning] = useState(false);
   const [status, setStatus] = useState("카메라를 준비하는 중…");
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +65,13 @@ export function BarcodeAddScreen() {
   useImmersiveMode(true);
 
   const stopScanner = useCallback(async () => {
+    if (nativeModeRef.current) {
+      await stopNativeBarcodeScan();
+      nativeModeRef.current = false;
+      setScanning(false);
+      return;
+    }
+
     const scanner = scannerRef.current;
     if (!scanner) return;
     try {
@@ -150,6 +163,47 @@ export function BarcodeAddScreen() {
 
     async function start() {
       if (typeof window === "undefined") return;
+
+      // Native Capacitor: ML Kit barcode scanning
+      if (isNativeBarcodePlatform()) {
+        nativeModeRef.current = true;
+        setStatus("카메라 권한을 확인하는 중…");
+        try {
+          await startNativeBarcodeScan({
+            onDetect: (raw) => {
+              void handleDecoded(raw);
+            },
+            onError: (msg) => {
+              console.error("[barcode] native scanError:", msg);
+            },
+          });
+          if (cancelled) {
+            await stopScanner();
+            return;
+          }
+          setScanning(true);
+          setStatus("바코드를 사각형 안에 맞춰 주세요");
+          setError(null);
+        } catch (err) {
+          console.error("[barcode] native camera:", err);
+          if (!cancelled) {
+            const denied =
+              err instanceof Error && err.message === "permission-denied";
+            setCameraUnavailable(true);
+            setError(
+              denied
+                ? "카메라 권한이 없어요. 설정에서 허용해 주세요."
+                : "카메라 권한이 없거나 사용할 수 없어요.",
+            );
+            openManualFallback(
+              "바코드 스캔을 사용할 수 없어요. 수동으로 입력해주세요",
+            );
+          }
+        }
+        return;
+      }
+
+      // Web: html5-qrcode + getUserMedia
       if (!navigator.mediaDevices?.getUserMedia) {
         setCameraUnavailable(true);
         openManualFallback(
@@ -207,7 +261,13 @@ export function BarcodeAddScreen() {
       cancelled = true;
       void stopScanner();
     };
-  }, [prefill, cameraUnavailable, handleDecoded, openManualFallback, stopScanner]);
+  }, [
+    prefill,
+    cameraUnavailable,
+    handleDecoded,
+    openManualFallback,
+    stopScanner,
+  ]);
 
   async function handleSubmit(payload: ManualAddPayload) {
     const supabase = createClient();
@@ -255,18 +315,26 @@ export function BarcodeAddScreen() {
   function handleFormClose() {
     setPrefill(null);
     handledRef.current = false;
-    // remount scanner via clearing prefill — effect restarts
   }
 
   function handleRescan() {
     setPrefill(null);
     handledRef.current = false;
+    setCameraUnavailable(false);
     setStatus("카메라를 다시 켜는 중…");
   }
 
+  const nativePreview = isNativeBarcodePlatform();
+
   return (
-    <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-[#0b1a10]">
-      <div className="flex shrink-0 items-center gap-2 px-4 pt-4 pb-3">
+    <div
+      className={`relative flex min-h-0 flex-1 flex-col overflow-hidden ${
+        nativePreview && scanning
+          ? "bg-transparent"
+          : "bg-[#0b1a10]"
+      }`}
+    >
+      <div className="flex shrink-0 items-center gap-2 bg-[#0b1a10]/95 px-4 pt-4 pb-3 backdrop-blur-sm">
         <button
           type="button"
           onClick={() => router.back()}
@@ -290,10 +358,25 @@ export function BarcodeAddScreen() {
         )}
       </div>
 
-      <div className="relative mx-4 mb-4 min-h-0 flex-1 overflow-hidden rounded-[24px] bg-black">
-        <div id={SCANNER_ID} className="size-full overflow-hidden" />
+      <div
+        className={`relative mx-4 mb-4 min-h-0 flex-1 overflow-hidden rounded-[24px] ${
+          nativePreview && scanning ? "bg-transparent" : "bg-black"
+        }`}
+      >
+        {/* Web scanner mounts into this node; native ML Kit draws behind the WebView */}
+        <div
+          id={SCANNER_ID}
+          className={`size-full overflow-hidden ${
+            nativePreview ? "pointer-events-none opacity-0" : ""
+          }`}
+        />
+        {nativePreview && scanning && !prefill && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+            <div className="h-[140px] w-[min(280px,80%)] rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.35)]" />
+          </div>
+        )}
         {!scanning && !prefill && (
-          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-white/70">
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-[#0b1a10] text-white/70">
             <ScanBarcode size={36} className="opacity-60" />
             <p className="px-6 text-center text-[13px]">
               {error ?? "카메라 프리뷰를 불러오는 중…"}
@@ -302,14 +385,10 @@ export function BarcodeAddScreen() {
         )}
       </div>
 
-      <div className="safe-bottom-max px-5 pt-2">
+      <div className="safe-bottom-max bg-[#0b1a10]/95 px-5 pt-2 backdrop-blur-sm">
         <button
           type="button"
-          onClick={() =>
-            openManualFallback(
-              "수동으로 입력해주세요",
-            )
-          }
+          onClick={() => openManualFallback("수동으로 입력해주세요")}
           className="touch-target w-full rounded-2xl border border-white/20 bg-white/10 py-3.5 text-[13px] font-semibold text-white"
         >
           수동으로 입력하기

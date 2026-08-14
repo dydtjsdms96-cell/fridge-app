@@ -1,5 +1,26 @@
 package com.dydtjsdms96.fridgeapp;
 
+import android.graphics.Color;
+import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 
-public class MainActivity extends BridgeActivity {}
+public class MainActivity extends BridgeActivity {
+  @Override
+  public void onCreate(Bundle savedInstanceState) {
+    super.onCreate(savedInstanceState);
+    applyTransparentWebView();
+  }
+
+  @Override
+  public void onStart() {
+    super.onStart();
+    applyTransparentWebView();
+  }
+
+  private void applyTransparentWebView() {
+    // ML Kit barcode scanner draws the camera behind the WebView
+    if (this.bridge != null && this.bridge.getWebView() != null) {
+      this.bridge.getWebView().setBackgroundColor(Color.TRANSPARENT);
+    }
+  }
+}
