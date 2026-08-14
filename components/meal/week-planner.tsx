@@ -90,6 +90,7 @@ export function WeekPlanner({
   const draggingRef = useRef<DragState | null>(null);
   const hoverMealRef = useRef<MealSlot | null>(null);
   const selectedDayRef = useRef(selectedDay);
+  const dropBusyRef = useRef(false);
 
   useEffect(() => {
     selectedDayRef.current = selectedDay;
@@ -102,6 +103,10 @@ export function WeekPlanner({
   useEffect(() => {
     hoverMealRef.current = hoverMeal;
   }, [hoverMeal]);
+
+  useEffect(() => {
+    dropBusyRef.current = dropBusy;
+  }, [dropBusy]);
 
   const selectedDate = dateByDay[selectedDay];
 
@@ -185,7 +190,10 @@ export function WeekPlanner({
   }
 
   function mealFromPoint(clientX: number, clientY: number): MealSlot | null {
+    const ghost = document.getElementById("meal-drag-ghost");
+    if (ghost) ghost.style.pointerEvents = "none";
     const el = document.elementFromPoint(clientX, clientY);
+    if (ghost) ghost.style.pointerEvents = "";
     const slot = el?.closest("[data-meal-slot]") as HTMLElement | null;
     const value = slot?.dataset.mealSlot;
     if (value && (MEAL_SLOTS as readonly string[]).includes(value)) {
@@ -194,55 +202,79 @@ export function WeekPlanner({
     return null;
   }
 
+  const dragHandlersRef = useRef<{
+    move: (e: PointerEvent) => void;
+    up: (e: Event) => void;
+  } | null>(null);
+
+  function clearDragListeners() {
+    if (!dragHandlersRef.current) return;
+    window.removeEventListener("pointermove", dragHandlersRef.current.move, true);
+    window.removeEventListener("pointerup", dragHandlersRef.current.up, true);
+    window.removeEventListener("pointercancel", dragHandlersRef.current.up, true);
+    dragHandlersRef.current = null;
+    document.body.style.removeProperty("touch-action");
+    document.body.style.removeProperty("user-select");
+  }
+
   function beginDrag(match: RecipeMatch, clientX: number, clientY: number) {
     const next = { match, x: clientX, y: clientY };
     draggingRef.current = next;
     setDragging(next);
-    setHoverMeal(mealFromPoint(clientX, clientY));
+    const initialMeal = mealFromPoint(clientX, clientY);
+    hoverMealRef.current = initialMeal;
+    setHoverMeal(initialMeal);
     setPlaceError(null);
-  }
 
-  useEffect(() => {
-    if (!dragging) return;
+    clearDragListeners();
 
-    function onMove(e: PointerEvent) {
+    const move = (e: PointerEvent) => {
       const cur = draggingRef.current;
       if (!cur) return;
-      const next = { ...cur, x: e.clientX, y: e.clientY };
-      draggingRef.current = next;
-      setDragging(next);
+      e.preventDefault();
+      const updated = { ...cur, x: e.clientX, y: e.clientY };
+      draggingRef.current = updated;
+      setDragging(updated);
       const meal = mealFromPoint(e.clientX, e.clientY);
       hoverMealRef.current = meal;
       setHoverMeal(meal);
-    }
+    };
 
-    async function onUp() {
+    const up = () => {
       const cur = draggingRef.current;
       const meal = hoverMealRef.current;
       draggingRef.current = null;
       hoverMealRef.current = null;
       setDragging(null);
       setHoverMeal(null);
-      if (!cur || !meal || dropBusy) return;
+      clearDragListeners();
+      if (!cur || !meal || dropBusyRef.current) return;
+      dropBusyRef.current = true;
       setDropBusy(true);
-      try {
-        await placeRecipeAt(cur.match, selectedDayRef.current, meal);
-      } catch {
-        // placeError already set
-      } finally {
-        setDropBusy(false);
-      }
-    }
-
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-    window.addEventListener("pointercancel", onUp);
-    return () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-      window.removeEventListener("pointercancel", onUp);
+      void placeRecipeAt(cur.match, selectedDayRef.current, meal)
+        .catch(() => {
+          // placeError already set
+        })
+        .finally(() => {
+          dropBusyRef.current = false;
+          setDropBusy(false);
+        });
     };
-  }, [Boolean(dragging)]);
+
+    dragHandlersRef.current = { move, up };
+    document.body.style.touchAction = "none";
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move, {
+      capture: true,
+      passive: false,
+    });
+    window.addEventListener("pointerup", up, true);
+    window.addEventListener("pointercancel", up, true);
+  }
+
+  useEffect(() => {
+    return () => clearDragListeners();
+  }, []);
 
   async function generateShoppingList() {
     if (shoppingBusy) return;
@@ -589,6 +621,7 @@ export function WeekPlanner({
 
       {dragging && (
         <div
+          id="meal-drag-ghost"
           className="pointer-events-none fixed z-50 flex max-w-[220px] items-center gap-2 rounded-xl border border-primary/30 bg-card px-3 py-2.5 shadow-[0_12px_28px_rgba(0,0,0,0.18)]"
           style={{
             left: dragging.x,

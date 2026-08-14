@@ -27,6 +27,9 @@ export function CandidateCard({
   const longPressTimer = useRef<number | null>(null);
   const origin = useRef({ x: 0, y: 0 });
   const suppressClick = useRef(false);
+  const dragStarted = useRef(false);
+  const targetRef = useRef<HTMLElement | null>(null);
+  const pointerIdRef = useRef<number | null>(null);
 
   function clearLongPress() {
     if (longPressTimer.current != null) {
@@ -37,18 +40,26 @@ export function CandidateCard({
 
   function onPointerDown(e: ReactPointerEvent) {
     if (!onDragBegin || e.button !== 0) return;
+    // Capture element now; React nulls currentTarget after the handler returns.
+    targetRef.current = e.currentTarget as HTMLElement;
+    pointerIdRef.current = e.pointerId;
+    dragStarted.current = false;
     suppressClick.current = false;
     origin.current = { x: e.clientX, y: e.clientY };
     clearLongPress();
     longPressTimer.current = window.setTimeout(() => {
       longPressTimer.current = null;
+      const el = targetRef.current;
+      const pointerId = pointerIdRef.current;
+      if (!el || pointerId == null) return;
+      dragStarted.current = true;
       suppressClick.current = true;
-      onDragBegin(match, origin.current.x, origin.current.y);
       try {
-        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        el.setPointerCapture(pointerId);
       } catch {
         // ignore
       }
+      onDragBegin(match, origin.current.x, origin.current.y);
     }, LONG_PRESS_MS);
   }
 
@@ -56,18 +67,22 @@ export function CandidateCard({
     if (longPressTimer.current == null) return;
     const dx = e.clientX - origin.current.x;
     const dy = e.clientY - origin.current.y;
+    // Cancel long-press if the finger slides (scroll intent) before it arms.
     if (Math.hypot(dx, dy) > 10) clearLongPress();
   }
 
   function onPointerEnd() {
     clearLongPress();
+    dragStarted.current = false;
+    targetRef.current = null;
+    pointerIdRef.current = null;
   }
 
   return (
     <div
-      className={`flex h-full touch-manipulation items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_6px_rgba(0,0,0,0.04)] transition-opacity ${
-        dragging ? "opacity-40" : "opacity-100"
-      }`}
+      className={`flex h-full items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_6px_rgba(0,0,0,0.04)] transition-opacity ${
+        onDragBegin ? "touch-none" : "touch-manipulation"
+      } ${dragging ? "opacity-40" : "opacity-100"}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerEnd}
@@ -77,7 +92,7 @@ export function CandidateCard({
         href={`/meal/${recipe.id}`}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
         onClick={(e) => {
-          if (suppressClick.current || dragging) {
+          if (suppressClick.current || dragging || dragStarted.current) {
             e.preventDefault();
             suppressClick.current = false;
           }
