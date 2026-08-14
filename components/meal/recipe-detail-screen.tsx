@@ -15,6 +15,7 @@ import {
   SERVING_OPTIONS,
   type ServingOption,
 } from "@/lib/servings-scale";
+import { renderStepContent } from "@/lib/render-step-content";
 import { createClient } from "@/lib/supabase";
 import {
   isCookedDish,
@@ -92,6 +93,15 @@ export function RecipeDetailScreen({
   const totalSteps = steps.length;
   const allDone = totalSteps > 0 && doneCount === totalSteps;
   const difficulty = recipe.difficulty;
+
+  const renderedSteps = useMemo(
+    () =>
+      steps.map((s) => ({
+        ...s,
+        content: renderStepContent(s.content, scaledIngredients, unitMode),
+      })),
+    [steps, scaledIngredients, unitMode],
+  );
 
   function bumpServings(delta: number) {
     setServings((prev) => {
@@ -424,7 +434,7 @@ export function RecipeDetailScreen({
             조리 단계
           </p>
           <ul className="mt-3.5 space-y-4">
-            {steps.map((s) => {
+            {renderedSteps.map((s) => {
               const checked = checkedSteps.has(s.step);
               return (
                 <li key={s.step}>
@@ -452,6 +462,7 @@ export function RecipeDetailScreen({
                           ? "text-muted-foreground line-through"
                           : "text-foreground"
                       }`}
+                      data-testid="recipe-step-content"
                     >
                       {s.content}
                     </p>
@@ -459,7 +470,7 @@ export function RecipeDetailScreen({
                 </li>
               );
             })}
-            {steps.length === 0 && (
+            {renderedSteps.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 등록된 조리 단계가 없어요
               </p>
