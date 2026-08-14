@@ -19,12 +19,11 @@ import {
 } from "@/lib/week";
 import type { FridgeItem } from "@/types/database";
 import type { MealPlanEntry } from "@/lib/meal-plan-types";
-import { CandidateCard } from "@/components/meal/candidate-card";
+import { PlannerCandidatePanel } from "@/components/meal/planner-candidate-panel";
 import {
   MealPlacementSheet,
   type SlotOccupant,
 } from "@/components/meal/meal-placement-sheet";
-import { EmptyState } from "@/components/ui/empty-state";
 
 export type { MealPlanEntry };
 
@@ -128,9 +127,6 @@ export function WeekPlanner({
     }
     return out;
   }, [planMap, dateByDay]);
-
-  const ready = matches.filter((m) => m.group === "냉털");
-  const plusOne = matches.filter((m) => m.group === "+1");
 
   async function placeRecipeAt(
     match: RecipeMatch,
@@ -516,73 +512,15 @@ export function WeekPlanner({
           레시피를 길게 눌러 위 끼니로 드래그하거나, + 로 배치할 수 있어요
         </p>
 
-        <div className="space-y-4">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <span className="size-2 shrink-0 rounded-full bg-status-fresh-dot" />
-              <span className="text-[12px] font-bold text-foreground">
-                바로 가능
-              </span>
-              <span className="text-[11px] tabular-nums text-muted-foreground">
-                {ready.length}개
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {ready.map((m) => (
-                <CandidateCard
-                  key={m.recipe.id}
-                  match={m}
-                  dragging={dragging?.match.recipe.id === m.recipe.id}
-                  onDragBegin={beginDrag}
-                  onAdd={() => {
-                    setPlaceError(null);
-                    setPlacing(m);
-                  }}
-                />
-              ))}
-              {ready.length === 0 && (
-                <EmptyState
-                  variant="section"
-                  className="py-2"
-                  title="지금 바로 만들 수 있는 요리가 없어요"
-                />
-              )}
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <span className="size-2 shrink-0 rounded-full bg-status-warn-dot" />
-              <span className="text-[12px] font-bold text-foreground">
-                +1 재료만 사면 가능
-              </span>
-              <span className="text-[11px] tabular-nums text-muted-foreground">
-                {plusOne.length}개
-              </span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-              {plusOne.map((m) => (
-                <CandidateCard
-                  key={m.recipe.id}
-                  match={m}
-                  dragging={dragging?.match.recipe.id === m.recipe.id}
-                  onDragBegin={beginDrag}
-                  onAdd={() => {
-                    setPlaceError(null);
-                    setPlacing(m);
-                  }}
-                />
-              ))}
-              {plusOne.length === 0 && (
-                <EmptyState
-                  variant="section"
-                  className="py-2"
-                  title="+1 후보 요리가 없어요"
-                />
-              )}
-            </div>
-          </div>
-        </div>
+        <PlannerCandidatePanel
+          matches={matches}
+          draggingId={dragging?.match.recipe.id ?? null}
+          onDragBegin={beginDrag}
+          onAdd={(m) => {
+            setPlaceError(null);
+            setPlacing(m);
+          }}
+        />
       </div>
 
       <div className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6 lg:px-8">
