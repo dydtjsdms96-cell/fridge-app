@@ -177,18 +177,21 @@ export function formatIngredientAmount(
   const uLower = u.toLowerCase();
   const name = ingredientName.trim();
 
-  // g ↔ kg (일반 모드에서는 큰 값을 kg로)
+  // g ↔ kg
+  // 일반 모드: 500g 이상은 kg로 읽어 토글(g 모드의 g 고정)과 대비가 보이게 함.
+  // (예: 4인분으로 800g → 0.8kg / g 모드 800g)
   if (uLower === "g" || u === "그램") {
-    if (raw >= 1000) {
+    if (raw >= 500) {
       return `${formatSmallDecimal(raw / 1000)}kg`;
     }
     return `${formatGramsNumber(raw)}g`;
   }
   if (uLower === "kg" || u === "킬로그램") {
+    // 일반 모드에서는 kg 유지 (소수 kg도 읽기 쉽게)
     return `${formatSmallDecimal(raw)}kg`;
   }
 
-  // ml ↔ L
+  // ml ↔ L (1L 이상)
   if (uLower === "ml" || u === "밀리리터" || uLower === "cc") {
     if (raw >= 1000) {
       return `${formatSmallDecimal(raw / 1000)}L`;
@@ -286,6 +289,18 @@ export function formatIngredientAmountGrams(
   unit: string | null | undefined,
   ingredientName = "",
 ): string {
+  const u = (unit ?? "").trim();
+  const uLower = u.toLowerCase();
+
+  // 이미 kg로 적힌 재료도 g 모드에서는 g로 풀어서 토글 대비가 보이게
+  if (
+    amount != null &&
+    Number.isFinite(Number(amount)) &&
+    (uLower === "kg" || u === "킬로그램")
+  ) {
+    return `${formatGramsNumber(Number(amount) * 1000)}g`;
+  }
+
   const grams = convertAmountToGrams(amount, unit, ingredientName);
   if (grams == null) {
     const natural = formatIngredientAmount(amount, unit, ingredientName);

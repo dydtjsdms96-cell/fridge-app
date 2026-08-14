@@ -93,12 +93,11 @@ export function RecipeDetailScreen({
   const allDone = totalSteps > 0 && doneCount === totalSteps;
   const difficulty = recipe.difficulty;
 
-  function setServingsClamped(next: number) {
-    const clamped = Math.min(
-      4,
-      Math.max(1, Math.floor(next)),
-    ) as ServingOption;
-    setServings(clamped);
+  function bumpServings(delta: number) {
+    setServings((prev) => {
+      const clamped = Math.min(4, Math.max(1, prev + delta));
+      return clamped as ServingOption;
+    });
   }
 
   function toggleStep(step: number) {
@@ -257,12 +256,15 @@ export function RecipeDetailScreen({
                   type="button"
                   aria-label="인분 줄이기"
                   disabled={servings <= 1}
-                  onClick={() => setServingsClamped(servings - 1)}
+                  onClick={() => bumpServings(-1)}
                   className="touch-target flex size-11 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-transform active:scale-95 disabled:opacity-40"
                 >
                   <Minus size={14} />
                 </button>
-                <span className="min-w-[3.25rem] text-center text-[18px] font-bold tabular-nums text-foreground">
+                <span
+                  className="min-w-[3.25rem] text-center text-[18px] font-bold tabular-nums text-foreground"
+                  data-testid="recipe-servings-value"
+                >
                   {servings}
                   <span className="ml-0.5 text-[12px] font-semibold text-muted-foreground">
                     인분
@@ -272,7 +274,7 @@ export function RecipeDetailScreen({
                   type="button"
                   aria-label="인분 늘리기"
                   disabled={servings >= 4}
-                  onClick={() => setServingsClamped(servings + 1)}
+                  onClick={() => bumpServings(1)}
                   className="touch-target flex size-11 items-center justify-center rounded-xl border border-border bg-background text-foreground transition-transform active:scale-95 disabled:opacity-40"
                 >
                   <Plus size={14} />
@@ -284,6 +286,7 @@ export function RecipeDetailScreen({
                 <button
                   key={n}
                   type="button"
+                  data-testid={`recipe-servings-${n}`}
                   onClick={() => setServings(n)}
                   className={`flex-1 rounded-lg py-1.5 text-[11px] font-semibold transition-colors ${
                     servings === n
@@ -308,7 +311,10 @@ export function RecipeDetailScreen({
               <p className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
                 재료
               </p>
-              <p className="text-[10px] text-muted-foreground">
+              <p
+                className="text-[10px] text-muted-foreground"
+                data-testid="recipe-servings-label"
+              >
                 {servings}인분 기준
               </p>
             </div>
@@ -318,9 +324,11 @@ export function RecipeDetailScreen({
             className="mt-3 flex rounded-xl border border-border bg-muted/60 p-0.5"
             role="group"
             aria-label="재료 단위 보기"
+            data-testid="recipe-unit-toggle"
           >
             <button
               type="button"
+              data-testid="recipe-unit-natural"
               onClick={() => setUnitMode("natural")}
               aria-pressed={unitMode === "natural"}
               className={`flex-1 rounded-[10px] py-2 text-[11px] font-semibold transition-colors ${
@@ -333,6 +341,7 @@ export function RecipeDetailScreen({
             </button>
             <button
               type="button"
+              data-testid="recipe-unit-grams"
               onClick={() => setUnitMode("grams")}
               aria-pressed={unitMode === "grams"}
               className={`flex-1 rounded-[10px] py-2 text-[11px] font-semibold transition-colors ${
@@ -346,11 +355,15 @@ export function RecipeDetailScreen({
           </div>
           <p className="mt-1.5 text-[10px] leading-[14px] text-muted-foreground">
             {unitMode === "grams"
-              ? "큰술·개·컵 등을 g으로 바꿔 보여요. (이미 g인 재료는 그대로)"
-              : "레시피 단위 그대로 · g≥1000은 kg, ml≥1000은 L로 표시"}
+              ? "큰술·개·컵 등을 g으로 바꿔 보여요. kg도 g으로 풀어요."
+              : "레시피 단위 그대로 · g≥500은 kg, ml≥1000은 L로 표시"}
           </p>
 
-          <ul className="mt-3 space-y-2.5">
+          <ul
+            className="mt-3 space-y-2.5"
+            data-testid="recipe-ingredient-list"
+            aria-live="polite"
+          >
             {visibleIngredients.map((ing) => {
               const owned = isOwnedIngredient(
                 ing.ingredient_name,
@@ -367,6 +380,8 @@ export function RecipeDetailScreen({
                 <li
                   key={`${ing.id}-${servings}-${unitMode}-${ing.scaledAmount}`}
                   className="flex items-center gap-3"
+                  data-ingredient={ing.ingredient_name}
+                  data-amount={amountLabel}
                 >
                   {owned ? (
                     <Check
@@ -388,7 +403,10 @@ export function RecipeDetailScreen({
                     {owned ? "" : "[부족] "}
                     {ing.ingredient_name}
                   </span>
-                  <span className="shrink-0 text-[12px] font-semibold tabular-nums text-foreground/80">
+                  <span
+                    className="shrink-0 text-[12px] font-semibold tabular-nums text-foreground/80"
+                    data-testid="recipe-ingredient-amount"
+                  >
                     {amountLabel}
                   </span>
                 </li>

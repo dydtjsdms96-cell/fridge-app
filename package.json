@@ -11,7 +11,8 @@
     "upload-recipe-images:dry": "node scripts/upload-recipe-images.mjs --dry-run",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android",
-    "cap:run": "npx cap run android"
+    "cap:run": "npx cap run android",
+    "cap:assets": "npx capacitor-assets generate --android --pwa --iconBackgroundColor \"#2E5B4C\" --iconBackgroundColorDark \"#2E5B4C\" --splashBackgroundColor \"#2E5B4C\" --splashBackgroundColorDark \"#2E5B4C\" && node scripts/clean-android-splash-xml.mjs"
   },
   "dependencies": {
     "@capacitor-community/speech-recognition": "^7.0.1",
@@ -31,7 +32,9 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.5.0",
+    "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
