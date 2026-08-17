@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import Link from "next/link";
 import { Plus, X } from "lucide-react";
 import type { RecipeMatch, RecipeWithIngredients } from "@/lib/recipe-match";
@@ -26,7 +26,6 @@ import {
   MealPlacementSheet,
   type SlotOccupant,
 } from "@/components/meal/meal-placement-sheet";
-import type { RefObject } from "react";
 
 export type { MealPlanEntry };
 
