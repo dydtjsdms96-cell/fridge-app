@@ -6,9 +6,9 @@ import type { RecipeMatch } from "@/lib/recipe-match";
 import { CandidateCard } from "@/components/meal/candidate-card";
 import { EmptyState } from "@/components/ui/empty-state";
 
-type GroupFilter = "냉털" | "+1";
+type GroupFilter = "냉털" | "+1" | "전체";
 
-type SectionId = "메인요리" | "밑반찬" | "전체" | "내레시피";
+type SectionId = "메인요리" | "밑반찬" | "내레시피";
 
 type PlannerCandidatePanelProps = {
   matches: RecipeMatch[];
@@ -31,12 +31,12 @@ export function PlannerCandidatePanel({
   const [open, setOpen] = useState<Record<SectionId, boolean>>({
     메인요리: false,
     밑반찬: false,
-    전체: false,
     내레시피: false,
   });
   const [mainGroup, setMainGroup] = useState<GroupFilter>("냉털");
   const [sideGroup, setSideGroup] = useState<GroupFilter>("냉털");
-  const [allQuery, setAllQuery] = useState("");
+  const [mainQuery, setMainQuery] = useState("");
+  const [sideQuery, setSideQuery] = useState("");
   const [mineQuery, setMineQuery] = useState("");
 
   function toggle(id: SectionId) {
@@ -56,18 +56,20 @@ export function PlannerCandidatePanel({
     [matches],
   );
 
-  const mainList = useMemo(
-    () => mains.filter((m) => m.group === mainGroup),
-    [mains, mainGroup],
-  );
-  const sideList = useMemo(
-    () => sides.filter((m) => m.group === sideGroup),
-    [sides, sideGroup],
-  );
-  const allList = useMemo(
-    () => matches.filter((m) => matchesTitle(m, allQuery.trim())),
-    [matches, allQuery],
-  );
+  const mainList = useMemo(() => {
+    if (mainGroup === "전체") {
+      return mains.filter((m) => matchesTitle(m, mainQuery.trim()));
+    }
+    return mains.filter((m) => m.group === mainGroup);
+  }, [mains, mainGroup, mainQuery]);
+
+  const sideList = useMemo(() => {
+    if (sideGroup === "전체") {
+      return sides.filter((m) => matchesTitle(m, sideQuery.trim()));
+    }
+    return sides.filter((m) => m.group === sideGroup);
+  }, [sides, sideGroup, sideQuery]);
+
   const mineList = useMemo(
     () => mine.filter((m) => matchesTitle(m, mineQuery.trim())),
     [mine, mineQuery],
@@ -94,6 +96,22 @@ export function PlannerCandidatePanel({
     );
   }
 
+  function dishEmptyTitle(
+    dish: "메인요리" | "밑반찬",
+    group: GroupFilter,
+    query: string,
+  ) {
+    if (group === "전체") {
+      return query.trim()
+        ? "검색 결과가 없어요"
+        : `등록된 ${dish}가 없어요`;
+    }
+    if (group === "냉털") {
+      return `지금 바로 만들 수 있는 ${dish}가 없어요`;
+    }
+    return `+1 재료면 가능한 ${dish}가 없어요`;
+  }
+
   return (
     <div className="space-y-2.5">
       <AccordionSection
@@ -103,11 +121,16 @@ export function PlannerCandidatePanel({
         onToggle={() => toggle("메인요리")}
       >
         <GroupChips value={mainGroup} onChange={setMainGroup} />
+        {mainGroup === "전체" && (
+          <SearchField
+            value={mainQuery}
+            onChange={setMainQuery}
+            placeholder="메인요리 검색 (예: 면, 고기)"
+          />
+        )}
         {renderGrid(
           mainList,
-          mainGroup === "냉털"
-            ? "지금 바로 만들 수 있는 메인요리가 없어요"
-            : "+1 재료면 가능한 메인요리가 없어요",
+          dishEmptyTitle("메인요리", mainGroup, mainQuery),
         )}
       </AccordionSection>
 
@@ -118,30 +141,16 @@ export function PlannerCandidatePanel({
         onToggle={() => toggle("밑반찬")}
       >
         <GroupChips value={sideGroup} onChange={setSideGroup} />
+        {sideGroup === "전체" && (
+          <SearchField
+            value={sideQuery}
+            onChange={setSideQuery}
+            placeholder="밑반찬 검색 (예: 나물, 무침)"
+          />
+        )}
         {renderGrid(
           sideList,
-          sideGroup === "냉털"
-            ? "지금 바로 만들 수 있는 밑반찬이 없어요"
-            : "+1 재료면 가능한 밑반찬이 없어요",
-        )}
-      </AccordionSection>
-
-      <AccordionSection
-        title="전체 보기"
-        count={matches.length}
-        open={open.전체}
-        onToggle={() => toggle("전체")}
-      >
-        <SearchField
-          value={allQuery}
-          onChange={setAllQuery}
-          placeholder="레시피명 검색 (예: 면, 고기)"
-        />
-        {renderGrid(
-          allList,
-          allQuery.trim()
-            ? "검색 결과가 없어요"
-            : "등록된 레시피가 없어요",
+          dishEmptyTitle("밑반찬", sideGroup, sideQuery),
         )}
       </AccordionSection>
 
@@ -217,6 +226,7 @@ function GroupChips({
   const chips: { id: GroupFilter; label: string }[] = [
     { id: "냉털", label: "냉털 (바로 가능)" },
     { id: "+1", label: "재료 +1개" },
+    { id: "전체", label: "전체보기" },
   ];
   return (
     <div className="flex gap-1.5 overflow-x-auto scrollbar-hide">
