@@ -1,20 +1,42 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { ChevronDown, Search } from "lucide-react";
 import type { RecipeMatch } from "@/lib/recipe-match";
 import { CandidateCard } from "@/components/meal/candidate-card";
 import { EmptyState } from "@/components/ui/empty-state";
 
-type GroupFilter = "냉털" | "+1" | "전체";
+export type GroupFilter = "냉털" | "+1" | "전체";
+export type SectionId = "메인요리" | "밑반찬" | "내레시피";
 
-type SectionId = "메인요리" | "밑반찬" | "내레시피";
+export type PlannerCandidateUiState = {
+  open: Record<SectionId, boolean>;
+  mainGroup: GroupFilter;
+  sideGroup: GroupFilter;
+  mainQuery: string;
+  sideQuery: string;
+  mineQuery: string;
+};
+
+export function defaultPlannerCandidateUiState(): PlannerCandidateUiState {
+  return {
+    open: { 메인요리: false, 밑반찬: false, 내레시피: false },
+    mainGroup: "냉털",
+    sideGroup: "냉털",
+    mainQuery: "",
+    sideQuery: "",
+    mineQuery: "",
+  };
+}
 
 type PlannerCandidatePanelProps = {
   matches: RecipeMatch[];
   draggingId: string | null;
   onDragBegin: (match: RecipeMatch, clientX: number, clientY: number) => void;
   onAdd: (match: RecipeMatch) => void;
+  ui: PlannerCandidateUiState;
+  onUiChange: (next: PlannerCandidateUiState) => void;
+  onNavigateAway?: () => void;
 };
 
 function matchesTitle(m: RecipeMatch, q: string) {
@@ -27,20 +49,18 @@ export function PlannerCandidatePanel({
   draggingId,
   onDragBegin,
   onAdd,
+  ui,
+  onUiChange,
+  onNavigateAway,
 }: PlannerCandidatePanelProps) {
-  const [open, setOpen] = useState<Record<SectionId, boolean>>({
-    메인요리: false,
-    밑반찬: false,
-    내레시피: false,
-  });
-  const [mainGroup, setMainGroup] = useState<GroupFilter>("냉털");
-  const [sideGroup, setSideGroup] = useState<GroupFilter>("냉털");
-  const [mainQuery, setMainQuery] = useState("");
-  const [sideQuery, setSideQuery] = useState("");
-  const [mineQuery, setMineQuery] = useState("");
+  const { open, mainGroup, sideGroup, mainQuery, sideQuery, mineQuery } = ui;
+
+  function patch(partial: Partial<PlannerCandidateUiState>) {
+    onUiChange({ ...ui, ...partial });
+  }
 
   function toggle(id: SectionId) {
-    setOpen((prev) => ({ ...prev, [id]: !prev[id] }));
+    patch({ open: { ...open, [id]: !open[id] } });
   }
 
   const mains = useMemo(
@@ -90,6 +110,7 @@ export function PlannerCandidatePanel({
             dragging={draggingId === m.recipe.id}
             onDragBegin={onDragBegin}
             onAdd={() => onAdd(m)}
+            onNavigate={onNavigateAway}
           />
         ))}
       </div>
@@ -120,11 +141,14 @@ export function PlannerCandidatePanel({
         open={open.메인요리}
         onToggle={() => toggle("메인요리")}
       >
-        <GroupChips value={mainGroup} onChange={setMainGroup} />
+        <GroupChips
+          value={mainGroup}
+          onChange={(mainGroup) => patch({ mainGroup })}
+        />
         {mainGroup === "전체" && (
           <SearchField
             value={mainQuery}
-            onChange={setMainQuery}
+            onChange={(mainQuery) => patch({ mainQuery })}
             placeholder="메인요리 검색 (예: 면, 고기)"
           />
         )}
@@ -140,11 +164,14 @@ export function PlannerCandidatePanel({
         open={open.밑반찬}
         onToggle={() => toggle("밑반찬")}
       >
-        <GroupChips value={sideGroup} onChange={setSideGroup} />
+        <GroupChips
+          value={sideGroup}
+          onChange={(sideGroup) => patch({ sideGroup })}
+        />
         {sideGroup === "전체" && (
           <SearchField
             value={sideQuery}
-            onChange={setSideQuery}
+            onChange={(sideQuery) => patch({ sideQuery })}
             placeholder="밑반찬 검색 (예: 나물, 무침)"
           />
         )}
@@ -162,7 +189,7 @@ export function PlannerCandidatePanel({
       >
         <SearchField
           value={mineQuery}
-          onChange={setMineQuery}
+          onChange={(mineQuery) => patch({ mineQuery })}
           placeholder="내 레시피 검색"
         />
         {renderGrid(
@@ -211,7 +238,11 @@ function AccordionSection({
           aria-hidden
         />
       </button>
-      {open && <div className="space-y-2.5 border-t border-border px-3 pb-3 pt-2.5">{children}</div>}
+      {open && (
+        <div className="space-y-2.5 border-t border-border px-3 pb-3 pt-2.5">
+          {children}
+        </div>
+      )}
     </div>
   );
 }

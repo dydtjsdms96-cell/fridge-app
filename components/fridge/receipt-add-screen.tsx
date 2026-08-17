@@ -10,6 +10,7 @@ import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 import type { ManualAddPayload } from "@/components/fridge/manual-add-sheet";
 import { Toast, useToast } from "@/components/ui/toast";
 import { useImmersiveMode } from "@/components/layout/immersive-mode";
+import { navigateBackOr } from "@/hooks/use-persisted-view-state";
 
 export function ReceiptAddScreen() {
   const router = useRouter();
@@ -55,8 +56,7 @@ export function ReceiptAddScreen() {
       { supabase, resolveDuplicate },
     );
 
-    router.push("/fridge");
-    router.refresh();
+    navigateBackOr(router, "/fridge");
   }
 
   return (

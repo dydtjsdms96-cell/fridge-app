@@ -253,7 +253,7 @@ export function RecipeDetailScreen({
           />
           <button
             type="button"
-            onClick={() => router.push("/meal")}
+            onClick={() => router.back()}
             className="touch-target absolute top-3 left-3 z-10 flex size-11 items-center justify-center rounded-full bg-card/90 text-foreground shadow-sm backdrop-blur-sm transition-transform active:scale-95"
             aria-label="뒤로"
           >

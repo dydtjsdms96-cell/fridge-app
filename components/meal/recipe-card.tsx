@@ -15,9 +15,10 @@ const DIFFICULTY_COLOR: Record<RecipeDifficulty, string> = {
 type RecipeCardProps = {
   match: RecipeMatch;
   onAdd?: () => void;
+  onNavigate?: () => void;
 };
 
-export function RecipeCard({ match, onAdd }: RecipeCardProps) {
+export function RecipeCard({ match, onAdd, onNavigate }: RecipeCardProps) {
   const { recipe, ingredients, ownedCount, totalCount, fulfillment, group } =
     match;
   const missing = ingredients.filter((i) => !i.owned);
@@ -26,7 +27,11 @@ export function RecipeCard({ match, onAdd }: RecipeCardProps) {
 
   return (
     <article className="overflow-hidden rounded-2xl border border-border bg-card shadow-[0_2px_12px_rgba(0,0,0,0.06)]">
-      <Link href={`/meal/${recipe.id}`} className="block">
+      <Link
+        href={`/meal/${recipe.id}`}
+        className="block"
+        onClick={() => onNavigate?.()}
+      >
         <div className="relative h-[144px] overflow-hidden bg-muted">
           {recipe.image_url ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -62,6 +67,7 @@ export function RecipeCard({ match, onAdd }: RecipeCardProps) {
         <div className="mb-1.5 flex items-start justify-between gap-2">
           <Link
             href={`/meal/${recipe.id}`}
+            onClick={() => onNavigate?.()}
             className="text-[14px] leading-tight font-bold text-foreground"
           >
             {recipe.title}
@@ -77,7 +83,11 @@ export function RecipeCard({ match, onAdd }: RecipeCardProps) {
           )}
         </div>
 
-        <Link href={`/meal/${recipe.id}`} className="block">
+        <Link
+          href={`/meal/${recipe.id}`}
+          className="block"
+          onClick={() => onNavigate?.()}
+        >
           <div className="mb-3 flex items-center gap-3 text-[11px] text-muted-foreground">
             {recipe.cook_minutes != null && (
               <span className="flex items-center gap-1">

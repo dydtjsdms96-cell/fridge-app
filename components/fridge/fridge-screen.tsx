@@ -27,6 +27,7 @@ import {
 } from "@/components/fridge/cooked-dish-add-sheet";
 import { VoiceRegisterFlow } from "@/components/fridge/voice-register-flow";
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
+import { usePersistedViewState } from "@/hooks/use-persisted-view-state";
 
 const ZONE_FILTERS = ["전체", "냉장", "냉동", "실온"] as const;
 const CATEGORY_FILTERS = [
@@ -38,6 +39,18 @@ const CATEGORY_FILTERS = [
   "두부·콩류",
   "기타",
 ] as const;
+
+type FridgeViewState = {
+  search: string;
+  zone: (typeof ZONE_FILTERS)[number];
+  category: (typeof CATEGORY_FILTERS)[number];
+};
+
+const FRIDGE_DEFAULTS: FridgeViewState = {
+  search: "",
+  zone: "전체",
+  category: "전체",
+};
 
 function matchCategory(
   item: Pick<FridgeItem, "category" | "item_type">,
@@ -115,10 +128,9 @@ export function FridgeScreen({
   const router = useRouter();
   const [items, setItems] = useState(initialItems);
   const [recentArchived, setRecentArchived] = useState(initialRecentArchived);
-  const [search, setSearch] = useState("");
-  const [zone, setZone] = useState<(typeof ZONE_FILTERS)[number]>("전체");
-  const [category, setCategory] =
-    useState<(typeof CATEGORY_FILTERS)[number]>("전체");
+  const { state, patchState, scrollRef, flush } =
+    usePersistedViewState<FridgeViewState>("/fridge", FRIDGE_DEFAULTS);
+  const { search, zone, category } = state;
   const [selectedItem, setSelectedItem] = useState<FridgeItem | null>(null);
   const [showAddOptions, setShowAddOptions] = useState(false);
   const [showManualAdd, setShowManualAdd] = useState(false);
@@ -342,7 +354,7 @@ export function FridgeScreen({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto pb-24 scrollbar-hide">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-24 scrollbar-hide">
         <div className="px-4 pt-4 pb-3 sm:px-6 lg:px-8">
           <h1 className="mb-3 text-[22px] font-bold leading-[27.5px] text-foreground">
             냉장고
@@ -351,7 +363,7 @@ export function FridgeScreen({
             <Search size={15} className="shrink-0 text-muted-foreground" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => patchState({ search: e.target.value })}
               placeholder="식재료 검색..."
               className="flex-1 bg-transparent text-[14px] text-foreground outline-none placeholder:text-muted-foreground"
             />
@@ -363,7 +375,7 @@ export function FridgeScreen({
             <button
               key={z}
               type="button"
-              onClick={() => setZone(z)}
+              onClick={() => patchState({ zone: z })}
               className={`shrink-0 rounded-full px-3.5 py-1.5 text-[12px] font-medium transition-all ${
                 zone === z
                   ? "bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.35)]"
@@ -380,7 +392,7 @@ export function FridgeScreen({
             <button
               key={cat}
               type="button"
-              onClick={() => setCategory(cat)}
+              onClick={() => patchState({ category: cat })}
               className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all ${
                 category === cat
                   ? "border-primary/20 bg-secondary text-primary"
@@ -530,9 +542,11 @@ export function FridgeScreen({
             setShowVoice(true);
           }}
           onSelectReceipt={() => {
+            flush();
             router.push("/fridge/add/receipt");
           }}
           onSelectBarcode={() => {
+            flush();
             router.push("/fridge/add/barcode");
           }}
           onSelectCookedDish={() => {

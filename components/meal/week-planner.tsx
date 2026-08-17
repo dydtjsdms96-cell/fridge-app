@@ -12,18 +12,21 @@ import { createClient } from "@/lib/supabase";
 import {
   getWeekDayDates,
   MEAL_SLOTS,
-  todayWeekDay,
   WEEK_DAYS,
   type MealSlot,
   type WeekDay,
 } from "@/lib/week";
 import type { FridgeItem } from "@/types/database";
 import type { MealPlanEntry } from "@/lib/meal-plan-types";
-import { PlannerCandidatePanel } from "@/components/meal/planner-candidate-panel";
+import {
+  PlannerCandidatePanel,
+  type PlannerCandidateUiState,
+} from "@/components/meal/planner-candidate-panel";
 import {
   MealPlacementSheet,
   type SlotOccupant,
 } from "@/components/meal/meal-placement-sheet";
+import type { RefObject } from "react";
 
 export type { MealPlanEntry };
 
@@ -34,6 +37,12 @@ type WeekPlannerProps = {
   initialPlans: MealPlanEntry[];
   userId: string;
   onPlansChange?: (plans: MealPlanEntry[]) => void;
+  selectedDay: WeekDay;
+  onSelectedDayChange: (day: WeekDay) => void;
+  scrollRef?: RefObject<HTMLDivElement | null>;
+  candidateUi: PlannerCandidateUiState;
+  onCandidateUiChange: (next: PlannerCandidateUiState) => void;
+  onNavigateAway?: () => void;
 };
 
 /** plan_date|meal_type → entries in that slot */
@@ -66,6 +75,12 @@ export function WeekPlanner({
   initialPlans,
   userId,
   onPlansChange,
+  selectedDay,
+  onSelectedDayChange,
+  scrollRef,
+  candidateUi,
+  onCandidateUiChange,
+  onNavigateAway,
 }: WeekPlannerProps) {
   const week = useMemo(() => getWeekDayDates(), []);
   const dateByDay = useMemo(() => {
@@ -74,7 +89,6 @@ export function WeekPlanner({
     return m;
   }, [week]);
 
-  const [selectedDay, setSelectedDay] = useState<WeekDay>(() => todayWeekDay());
   const [planMap, setPlanMap] = useState<PlanMap>(() =>
     buildPlanMap(initialPlans),
   );
@@ -393,6 +407,7 @@ export function WeekPlanner({
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <div
+        ref={scrollRef}
         className={`min-h-0 flex-1 overflow-y-auto px-4 pb-4 scrollbar-hide sm:px-6 lg:px-8 ${
           dragging ? "overflow-hidden touch-none" : ""
         }`}
@@ -407,7 +422,7 @@ export function WeekPlanner({
               <button
                 key={day}
                 type="button"
-                onClick={() => setSelectedDay(day)}
+                onClick={() => onSelectedDayChange(day)}
                 className={`flex flex-1 flex-col items-center gap-1 rounded-xl py-2 text-[12px] font-semibold transition-all ${
                   on
                     ? "bg-primary text-primary-foreground"
@@ -463,6 +478,7 @@ export function WeekPlanner({
                                 ? `/meal/${entry.recipe_id}`
                                 : "/meal"
                             }
+                            onClick={() => onNavigateAway?.()}
                             className="flex min-w-0 flex-1 items-center gap-2"
                           >
                             <FoodIcon name={title} size={20} />
@@ -520,6 +536,9 @@ export function WeekPlanner({
             setPlaceError(null);
             setPlacing(m);
           }}
+          ui={candidateUi}
+          onUiChange={onCandidateUiChange}
+          onNavigateAway={onNavigateAway}
         />
       </div>
 

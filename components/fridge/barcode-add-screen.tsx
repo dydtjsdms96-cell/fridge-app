@@ -17,6 +17,7 @@ import {
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
 import { Toast, useToast } from "@/components/ui/toast";
 import { useImmersiveMode } from "@/components/layout/immersive-mode";
+import { navigateBackOr } from "@/hooks/use-persisted-view-state";
 import {
   isNativeBarcodePlatform,
   startNativeBarcodeScan,
@@ -308,8 +309,7 @@ export function BarcodeAddScreen() {
       }
     }
 
-    router.push("/fridge");
-    router.refresh();
+    navigateBackOr(router, "/fridge");
   }
 
   function handleFormClose() {

@@ -16,6 +16,7 @@ type CandidateCardProps = {
   /** Long-press then drag to a meal slot */
   onDragBegin?: (match: RecipeMatch, clientX: number, clientY: number) => void;
   dragging?: boolean;
+  onNavigate?: () => void;
 };
 
 export function CandidateCard({
@@ -23,6 +24,7 @@ export function CandidateCard({
   onAdd,
   onDragBegin,
   dragging = false,
+  onNavigate,
 }: CandidateCardProps) {
   const { recipe, ingredients, ownedCount, totalCount } = match;
   const missing = ingredients.filter((i) => !i.owned);
@@ -109,7 +111,9 @@ export function CandidateCard({
           if (suppressClick.current || dragging || dragStarted.current) {
             e.preventDefault();
             suppressClick.current = false;
+            return;
           }
+          onNavigate?.();
         }}
         draggable={false}
       >

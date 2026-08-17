@@ -58,6 +58,7 @@ import {
   type ConfirmMode,
 } from "@/components/fridge/item-detail-sheet";
 import { useDuplicateItemPrompt } from "@/hooks/use-duplicate-item-prompt";
+import { usePersistedViewState } from "@/hooks/use-persisted-view-state";
 import { Toast, useToast } from "@/components/ui/toast";
 
 type ItemWithMeta = FridgeItem & {
@@ -100,6 +101,10 @@ type HomeScreenProps = {
 export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScreenProps) {
   const router = useRouter();
   const voiceAddRequest = useOptionalVoiceAddRequest();
+  const { scrollRef, flush } = usePersistedViewState<Record<string, never>>(
+    "/",
+    {},
+  );
   const [items, setItems] = useState(initialItems);
   const [zones, setZones] = useState(initialZones);
   const [addTarget, setAddTarget] = useState<AddTarget | null>(null);
@@ -636,7 +641,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div className="flex-1 overflow-y-auto pb-28 scrollbar-hide">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto pb-28 scrollbar-hide">
         <div className="flex flex-col gap-4 bg-background px-5 pt-5 pb-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
@@ -694,6 +699,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
             {!panels.needsStructureSetup && (
               <Link
                 href="/settings/zones"
+                onClick={() => flush()}
                 className="flex items-center gap-1.5 rounded-full border border-border bg-white px-2.5 py-1.5 text-[11px] font-bold text-[#2d5a45]"
               >
                 <SlidersHorizontal size={14} />
@@ -704,7 +710,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
 
           <div className="flex flex-1 flex-col gap-3 rounded-[20px] border border-border bg-[#f0efe9] p-3 shadow-[0_2px_12px_rgba(0,0,0,0.05)]">
             {panels.needsStructureSetup ? (
-              <StructureSetupPrompt />
+              <StructureSetupPrompt onNavigate={() => flush()} />
             ) : (
               <>
                 <ZoneSection
@@ -825,9 +831,11 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
             setShowVoice(true);
           }}
           onSelectReceipt={() => {
+            flush();
             router.push("/fridge/add/receipt");
           }}
           onSelectBarcode={() => {
+            flush();
             router.push("/fridge/add/barcode");
           }}
           onSelectCookedDish={() => {
@@ -975,7 +983,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
   );
 }
 
-function StructureSetupPrompt() {
+function StructureSetupPrompt({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <div className="flex flex-col items-center gap-4 px-3 py-8 text-center">
       <div className="flex size-14 items-center justify-center rounded-2xl bg-white text-[28px] shadow-sm">
@@ -995,6 +1003,7 @@ function StructureSetupPrompt() {
       </div>
       <Link
         href="/settings/zones"
+        onClick={() => onNavigate?.()}
         className="flex w-full max-w-[260px] items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3.5 text-[14px] font-bold text-primary-foreground shadow-[0_6px_16px_rgba(61,112,88,0.28)]"
       >
         <SlidersHorizontal size={16} />

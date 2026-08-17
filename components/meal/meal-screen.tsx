@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Plus, UtensilsCrossed } from "lucide-react";
 import type { RecipeMatch, RecipeWithIngredients } from "@/lib/recipe-match";
@@ -26,7 +26,12 @@ import {
   MealPlacementSheet,
   type SlotOccupant,
 } from "@/components/meal/meal-placement-sheet";
+import {
+  type PlannerCandidateUiState,
+  defaultPlannerCandidateUiState,
+} from "@/components/meal/planner-candidate-panel";
 import { EmptyState } from "@/components/ui/empty-state";
+import { usePersistedViewState } from "@/hooks/use-persisted-view-state";
 
 const DISH_TYPE_TABS: { id: DishTypeFilter; label: string }[] = [
   { id: "메인요리", label: "메인요리" },
@@ -38,6 +43,26 @@ const FILTER_CHIPS: { id: RecipeFilter; label: string }[] = [
   { id: "냉털", label: "냉털 (지금 바로)" },
   { id: "+1", label: "재료 +1개" },
 ];
+
+type MealViewState = {
+  subTab: "recipes" | "planner";
+  dishType: DishTypeFilter;
+  filter: RecipeFilter;
+  selectedDay: WeekDay;
+  plannerUi: PlannerCandidateUiState;
+  scrollTopRecipes: number;
+  scrollTopPlanner: number;
+};
+
+const MEAL_DEFAULTS: MealViewState = {
+  subTab: "recipes",
+  dishType: "메인요리",
+  filter: "전체",
+  selectedDay: todayWeekDay(),
+  plannerUi: defaultPlannerCandidateUiState(),
+  scrollTopRecipes: 0,
+  scrollTopPlanner: 0,
+};
 
 type MealScreenProps = {
   matches: RecipeMatch[];
@@ -54,9 +79,23 @@ export function MealScreen({
   initialPlans,
   userId,
 }: MealScreenProps) {
-  const [subTab, setSubTab] = useState<"recipes" | "planner">("recipes");
-  const [dishType, setDishType] = useState<DishTypeFilter>("메인요리");
-  const [filter, setFilter] = useState<RecipeFilter>("전체");
+  const { state, patchState, ready, flush } = usePersistedViewState<MealViewState>(
+    "/meal",
+    MEAL_DEFAULTS,
+    { persistScroll: false },
+  );
+  const {
+    subTab,
+    dishType,
+    filter,
+    selectedDay,
+    plannerUi,
+    scrollTopRecipes,
+    scrollTopPlanner,
+  } = state;
+
+  const recipesScrollRef = useRef<HTMLDivElement | null>(null);
+  const plannerScrollRef = useRef<HTMLDivElement | null>(null);
   const [placing, setPlacing] = useState<RecipeMatch | null>(null);
   const [plans, setPlans] = useState<MealPlanEntry[]>(initialPlans);
 
@@ -66,9 +105,50 @@ export function MealScreen({
   );
 
   function selectDishType(next: DishTypeFilter) {
-    setDishType(next);
-    setFilter("전체");
+    patchState({ dishType: next, filter: "전체" });
   }
+
+  useEffect(() => {
+    if (!ready) return;
+    const el =
+      subTab === "recipes"
+        ? recipesScrollRef.current
+        : plannerScrollRef.current;
+    const top = subTab === "recipes" ? scrollTopRecipes : scrollTopPlanner;
+    if (!el || top <= 0) return;
+    requestAnimationFrame(() => {
+      el.scrollTop = top;
+    });
+  }, [ready, subTab, scrollTopRecipes, scrollTopPlanner]);
+
+  useEffect(() => {
+    if (!ready) return;
+    const el =
+      subTab === "recipes"
+        ? recipesScrollRef.current
+        : plannerScrollRef.current;
+    if (!el) return;
+    let timer: number | null = null;
+    const onScroll = () => {
+      const top = el.scrollTop;
+      if (timer != null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        if (subTab === "recipes") patchState({ scrollTopRecipes: top });
+        else patchState({ scrollTopPlanner: top });
+      }, 80);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      if (timer != null) window.clearTimeout(timer);
+      el.removeEventListener("scroll", onScroll);
+      if (subTab === "recipes") {
+        patchState({ scrollTopRecipes: el.scrollTop });
+      } else {
+        patchState({ scrollTopPlanner: el.scrollTop });
+      }
+      flush();
+    };
+  }, [ready, subTab, patchState, flush]);
 
   const defaultDay: WeekDay = todayWeekDay();
 
@@ -115,7 +195,10 @@ export function MealScreen({
             <button
               key={t.id}
               type="button"
-              onClick={() => setSubTab(t.id)}
+              onClick={() => {
+                flush();
+                patchState({ subTab: t.id });
+              }}
               className={`flex-1 rounded-[10px] py-2 text-[12px] font-semibold leading-[18px] transition-all ${
                 subTab === t.id
                   ? "bg-card text-foreground shadow-[0_1px_6px_rgba(0,0,0,0.08)]"
@@ -160,7 +243,7 @@ export function MealScreen({
                   <button
                     key={chip.id}
                     type="button"
-                    onClick={() => setFilter(chip.id)}
+                    onClick={() => patchState({ filter: chip.id })}
                     className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12px] font-medium transition-all ${
                       filter === chip.id
                         ? "border-transparent bg-primary text-primary-foreground shadow-[0_2px_8px_rgba(61,112,88,0.3)]"
@@ -173,6 +256,7 @@ export function MealScreen({
               </div>
               <Link
                 href="/meal/write"
+                onClick={() => flush()}
                 className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-secondary px-3 py-1.5 text-[12px] font-bold text-primary shadow-[0_1px_4px_rgba(61,112,88,0.12)] transition-transform active:scale-95"
               >
                 <Plus size={14} strokeWidth={2.5} aria-hidden />
@@ -181,13 +265,17 @@ export function MealScreen({
             </div>
           </div>
 
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 scrollbar-hide sm:px-6 lg:px-8">
+          <div
+            ref={recipesScrollRef}
+            className="min-h-0 flex-1 overflow-y-auto px-4 pb-8 scrollbar-hide sm:px-6 lg:px-8"
+          >
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {filtered.map((m) => (
                 <RecipeCard
                   key={m.recipe.id}
                   match={m}
                   onAdd={() => setPlacing(m)}
+                  onNavigate={() => flush()}
                 />
               ))}
             </div>
@@ -218,6 +306,12 @@ export function MealScreen({
           initialPlans={plans}
           userId={userId}
           onPlansChange={setPlans}
+          selectedDay={selectedDay}
+          onSelectedDayChange={(day) => patchState({ selectedDay: day })}
+          scrollRef={plannerScrollRef}
+          candidateUi={plannerUi}
+          onCandidateUiChange={(next) => patchState({ plannerUi: next })}
+          onNavigateAway={() => flush()}
         />
       )}
 
