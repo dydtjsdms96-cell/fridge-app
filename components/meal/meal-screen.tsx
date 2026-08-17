@@ -83,7 +83,7 @@ export function MealScreen({
   initialPlans,
   userId,
 }: MealScreenProps) {
-  const { state, patchState, ready, flush } = usePersistedViewState<MealViewState>(
+  const { state, patchState, ready } = usePersistedViewState<MealViewState>(
     "/meal",
     MEAL_DEFAULTS,
     { persistScroll: false },
@@ -103,6 +103,9 @@ export function MealScreen({
   const restoringScrollRef = useRef(false);
   const pendingScrollRestoreRef = useRef<number | null>(null);
   const scrollRestoreSeededRef = useRef(false);
+  /** Latest meal view — used for session writes without re-subscribing scroll listeners. */
+  const mealViewRef = useRef(state);
+  mealViewRef.current = state;
   const [scrollReady, setScrollReady] = useState(false);
   const [placing, setPlacing] = useState<RecipeMatch | null>(null);
   const [plans, setPlans] = useState<MealPlanEntry[]>(initialPlans);
@@ -116,27 +119,28 @@ export function MealScreen({
     patchState({ dishType: next, filter: "전체" });
   }
 
-  /** Capture active scroller into state + sessionStorage synchronously. */
+  /**
+   * Persist scroll before leaving /meal.
+   * Must NOT call patchState/setState — a re-render mid-click aborts <Link> navigation.
+   */
   function flushMealView() {
     const el =
       subTab === "recipes"
         ? recipesScrollRef.current
         : plannerScrollRef.current;
+    const current = mealViewRef.current;
     const next: MealViewState = {
-      ...state,
+      ...current,
       scrollTopRecipes:
         subTab === "recipes" && el && !restoringScrollRef.current
           ? el.scrollTop
-          : scrollTopRecipes,
+          : current.scrollTopRecipes,
       scrollTopPlanner:
         subTab === "planner" && el && !restoringScrollRef.current
           ? el.scrollTop
-          : scrollTopPlanner,
+          : current.scrollTopPlanner,
     };
-    patchState({
-      scrollTopRecipes: next.scrollTopRecipes,
-      scrollTopPlanner: next.scrollTopPlanner,
-    });
+    mealViewRef.current = next;
     writePersistedViewState("/meal", next, 0);
   }
 
@@ -202,24 +206,30 @@ export function MealScreen({
       const top = el.scrollTop;
       if (timer != null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        if (subTab === "recipes") patchState({ scrollTopRecipes: top });
-        else patchState({ scrollTopPlanner: top });
+        if (subTab === "recipes") {
+          mealViewRef.current = {
+            ...mealViewRef.current,
+            scrollTopRecipes: top,
+          };
+          patchState({ scrollTopRecipes: top });
+        } else {
+          mealViewRef.current = {
+            ...mealViewRef.current,
+            scrollTopPlanner: top,
+          };
+          patchState({ scrollTopPlanner: top });
+        }
       }, 80);
     };
     el.addEventListener("scroll", onScroll, { passive: true });
     return () => {
       if (timer != null) window.clearTimeout(timer);
       el.removeEventListener("scroll", onScroll);
-      if (!restoringScrollRef.current) {
-        const nextScroll =
-          subTab === "recipes"
-            ? { scrollTopRecipes: el.scrollTop }
-            : { scrollTopPlanner: el.scrollTop };
-        patchState(nextScroll);
-        writePersistedViewState("/meal", { ...state, ...nextScroll }, 0);
-      }
+      // Do not write sessionStorage here. Tab switches call flushMealView first;
+      // writing on unmount races Link navigation and can clobber a just-flushed
+      // offset with 0.
     };
-  }, [ready, scrollReady, subTab, patchState, state]);
+  }, [ready, scrollReady, subTab, patchState]);
 
   const defaultDay: WeekDay = todayWeekDay();
 
@@ -327,7 +337,7 @@ export function MealScreen({
               </div>
               <Link
                 href="/meal/write"
-                onClick={() => flushMealView()}
+                onPointerDown={() => flushMealView()}
                 className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-secondary px-3 py-1.5 text-[12px] font-bold text-primary shadow-[0_1px_4px_rgba(61,112,88,0.12)] transition-transform active:scale-95"
               >
                 <Plus size={14} strokeWidth={2.5} aria-hidden />

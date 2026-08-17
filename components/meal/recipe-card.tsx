@@ -30,7 +30,7 @@ export function RecipeCard({ match, onAdd, onNavigate }: RecipeCardProps) {
       <Link
         href={`/meal/${recipe.id}`}
         className="block"
-        onClick={() => onNavigate?.()}
+        onPointerDown={() => onNavigate?.()}
       >
         <div className="relative h-[144px] overflow-hidden bg-muted">
           {recipe.image_url ? (
@@ -67,7 +67,7 @@ export function RecipeCard({ match, onAdd, onNavigate }: RecipeCardProps) {
         <div className="mb-1.5 flex items-start justify-between gap-2">
           <Link
             href={`/meal/${recipe.id}`}
-            onClick={() => onNavigate?.()}
+            onPointerDown={() => onNavigate?.()}
             className="text-[14px] leading-tight font-bold text-foreground"
           >
             {recipe.title}
@@ -86,7 +86,7 @@ export function RecipeCard({ match, onAdd, onNavigate }: RecipeCardProps) {
         <Link
           href={`/meal/${recipe.id}`}
           className="block"
-          onClick={() => onNavigate?.()}
+          onPointerDown={() => onNavigate?.()}
         >
           <div className="mb-3 flex items-center gap-3 text-[11px] text-muted-foreground">
             {recipe.cook_minutes != null && (

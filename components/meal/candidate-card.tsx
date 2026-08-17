@@ -107,13 +107,18 @@ export function CandidateCard({
       <Link
         href={`/meal/${recipe.id}`}
         className="flex min-w-0 flex-1 items-center gap-3 text-left"
+        onPointerDown={() => {
+          // Persist scroll before Link navigates — must not setState on click
+          // (re-render mid-click aborts Next.js soft navigation).
+          if (!suppressClick.current && !dragging && !dragStarted.current) {
+            onNavigate?.();
+          }
+        }}
         onClick={(e) => {
           if (suppressClick.current || dragging || dragStarted.current) {
             e.preventDefault();
             suppressClick.current = false;
-            return;
           }
-          onNavigate?.();
         }}
         draggable={false}
       >

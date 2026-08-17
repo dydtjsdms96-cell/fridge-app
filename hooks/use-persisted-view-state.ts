@@ -160,7 +160,13 @@ export function restoreElementScroll(
     rafId = requestAnimationFrame(tryRestore);
   });
 
-  return () => finish(false);
+  // Cleanup must not call onComplete — effect remounts would flicker scrollReady
+  // and re-bind listeners mid-interaction.
+  return () => {
+    cancelled = true;
+    if (rafId != null) cancelAnimationFrame(rafId);
+    if (timeoutId != null) window.clearTimeout(timeoutId);
+  };
 }
 
 export type UsePersistedViewStateOptions = {

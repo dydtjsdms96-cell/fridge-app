@@ -477,7 +477,7 @@ export function WeekPlanner({
                                 ? `/meal/${entry.recipe_id}`
                                 : "/meal"
                             }
-                            onClick={() => onNavigateAway?.()}
+                            onPointerDown={() => onNavigateAway?.()}
                             className="flex min-w-0 flex-1 items-center gap-2"
                           >
                             <FoodIcon name={title} size={20} />
