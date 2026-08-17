@@ -31,7 +31,11 @@ import {
   defaultPlannerCandidateUiState,
 } from "@/components/meal/planner-candidate-panel";
 import { EmptyState } from "@/components/ui/empty-state";
-import { usePersistedViewState } from "@/hooks/use-persisted-view-state";
+import {
+  restoreElementScroll,
+  usePersistedViewState,
+  writePersistedViewState,
+} from "@/hooks/use-persisted-view-state";
 
 const DISH_TYPE_TABS: { id: DishTypeFilter; label: string }[] = [
   { id: "메인요리", label: "메인요리" },
@@ -96,6 +100,10 @@ export function MealScreen({
 
   const recipesScrollRef = useRef<HTMLDivElement | null>(null);
   const plannerScrollRef = useRef<HTMLDivElement | null>(null);
+  const restoringScrollRef = useRef(false);
+  const pendingScrollRestoreRef = useRef<number | null>(null);
+  const scrollRestoreSeededRef = useRef(false);
+  const [scrollReady, setScrollReady] = useState(false);
   const [placing, setPlacing] = useState<RecipeMatch | null>(null);
   const [plans, setPlans] = useState<MealPlanEntry[]>(initialPlans);
 
@@ -108,21 +116,81 @@ export function MealScreen({
     patchState({ dishType: next, filter: "전체" });
   }
 
-  useEffect(() => {
-    if (!ready) return;
+  /** Capture active scroller into state + sessionStorage synchronously. */
+  function flushMealView() {
     const el =
       subTab === "recipes"
         ? recipesScrollRef.current
         : plannerScrollRef.current;
-    const top = subTab === "recipes" ? scrollTopRecipes : scrollTopPlanner;
-    if (!el || top <= 0) return;
-    requestAnimationFrame(() => {
-      el.scrollTop = top;
+    const next: MealViewState = {
+      ...state,
+      scrollTopRecipes:
+        subTab === "recipes" && el && !restoringScrollRef.current
+          ? el.scrollTop
+          : scrollTopRecipes,
+      scrollTopPlanner:
+        subTab === "planner" && el && !restoringScrollRef.current
+          ? el.scrollTop
+          : scrollTopPlanner,
+    };
+    patchState({
+      scrollTopRecipes: next.scrollTopRecipes,
+      scrollTopPlanner: next.scrollTopPlanner,
     });
+    writePersistedViewState("/meal", next, 0);
+  }
+
+  // Seed the scroll target once from hydrated state (do not re-seed after user scrolls).
+  useEffect(() => {
+    if (!ready || scrollRestoreSeededRef.current) return;
+    scrollRestoreSeededRef.current = true;
+    const top = subTab === "recipes" ? scrollTopRecipes : scrollTopPlanner;
+    pendingScrollRestoreRef.current = top > 0 ? top : 0;
   }, [ready, subTab, scrollTopRecipes, scrollTopPlanner]);
 
+  // After accordion/filters paint and list has height, apply pending scroll.
   useEffect(() => {
-    if (!ready) return;
+    if (!ready || !scrollRestoreSeededRef.current) return;
+    const top = pendingScrollRestoreRef.current ?? 0;
+    if (!(top > 0)) {
+      restoringScrollRef.current = false;
+      setScrollReady(true);
+      return;
+    }
+
+    restoringScrollRef.current = true;
+    setScrollReady(false);
+
+    const cancel = restoreElementScroll(
+      () =>
+        subTab === "recipes"
+          ? recipesScrollRef.current
+          : plannerScrollRef.current,
+      top,
+      {
+        onComplete: (applied) => {
+          restoringScrollRef.current = false;
+          if (applied) pendingScrollRestoreRef.current = 0;
+          setScrollReady(true);
+        },
+      },
+    );
+    return cancel;
+  }, [
+    ready,
+    subTab,
+    plannerUi.open.메인요리,
+    plannerUi.open.밑반찬,
+    plannerUi.open.내레시피,
+    plannerUi.mainGroup,
+    plannerUi.sideGroup,
+    dishType,
+    filter,
+    filtered.length,
+  ]);
+
+  useEffect(() => {
+    if (!ready || !scrollReady) return;
     const el =
       subTab === "recipes"
         ? recipesScrollRef.current
@@ -130,6 +198,7 @@ export function MealScreen({
     if (!el) return;
     let timer: number | null = null;
     const onScroll = () => {
+      if (restoringScrollRef.current) return;
       const top = el.scrollTop;
       if (timer != null) window.clearTimeout(timer);
       timer = window.setTimeout(() => {
@@ -141,14 +210,16 @@ export function MealScreen({
     return () => {
       if (timer != null) window.clearTimeout(timer);
       el.removeEventListener("scroll", onScroll);
-      if (subTab === "recipes") {
-        patchState({ scrollTopRecipes: el.scrollTop });
-      } else {
-        patchState({ scrollTopPlanner: el.scrollTop });
+      if (!restoringScrollRef.current) {
+        const nextScroll =
+          subTab === "recipes"
+            ? { scrollTopRecipes: el.scrollTop }
+            : { scrollTopPlanner: el.scrollTop };
+        patchState(nextScroll);
+        writePersistedViewState("/meal", { ...state, ...nextScroll }, 0);
       }
-      flush();
     };
-  }, [ready, subTab, patchState, flush]);
+  }, [ready, scrollReady, subTab, patchState, state]);
 
   const defaultDay: WeekDay = todayWeekDay();
 
@@ -196,7 +267,7 @@ export function MealScreen({
               key={t.id}
               type="button"
               onClick={() => {
-                flush();
+                flushMealView();
                 patchState({ subTab: t.id });
               }}
               className={`flex-1 rounded-[10px] py-2 text-[12px] font-semibold leading-[18px] transition-all ${
@@ -256,7 +327,7 @@ export function MealScreen({
               </div>
               <Link
                 href="/meal/write"
-                onClick={() => flush()}
+                onClick={() => flushMealView()}
                 className="inline-flex shrink-0 items-center gap-1 rounded-full border border-primary/20 bg-secondary px-3 py-1.5 text-[12px] font-bold text-primary shadow-[0_1px_4px_rgba(61,112,88,0.12)] transition-transform active:scale-95"
               >
                 <Plus size={14} strokeWidth={2.5} aria-hidden />
@@ -275,7 +346,7 @@ export function MealScreen({
                   key={m.recipe.id}
                   match={m}
                   onAdd={() => setPlacing(m)}
-                  onNavigate={() => flush()}
+                  onNavigate={() => flushMealView()}
                 />
               ))}
             </div>
@@ -311,7 +382,7 @@ export function MealScreen({
           scrollRef={plannerScrollRef}
           candidateUi={plannerUi}
           onCandidateUiChange={(next) => patchState({ plannerUi: next })}
-          onNavigateAway={() => flush()}
+          onNavigateAway={() => flushMealView()}
         />
       )}
 
