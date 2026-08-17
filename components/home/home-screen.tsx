@@ -360,6 +360,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
     itemPointerOrigin.current = { x: e.clientX, y: e.clientY };
     const target = e.currentTarget;
     const pointerId = e.pointerId;
+    // Do not set touch-action:none yet — allow parent scroll until long-press arms.
     itemLongPressTimer.current = window.setTimeout(() => {
       const rect = target.getBoundingClientRect();
       const next: ItemDragState = {
@@ -375,6 +376,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
       setItemDrag(next);
       setDropTargetKey(null);
       suppressItemClick.current = true;
+      target.style.touchAction = "none";
       try {
         target.setPointerCapture(pointerId);
       } catch {
@@ -388,6 +390,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
     if (!itemDragRef.current) {
       const dx = e.clientX - itemPointerOrigin.current.x;
       const dy = e.clientY - itemPointerOrigin.current.y;
+      // Scroll intent: cancel pending long-press, never preventDefault.
       if (Math.hypot(dx, dy) > 10) clearItemLongPress();
       return;
     }
@@ -401,9 +404,16 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
     setDropTargetKey(hitTestDropTarget(e.clientX, e.clientY));
   }
 
+  function clearItemDragTouchAction(target: EventTarget | null) {
+    if (target instanceof HTMLElement) {
+      target.style.removeProperty("touch-action");
+    }
+  }
+
   function onItemPointerUp(e: ReactPointerEvent<HTMLElement>) {
     e.stopPropagation();
     clearItemLongPress();
+    clearItemDragTouchAction(e.currentTarget);
     const dragging = itemDragRef.current;
     if (!dragging) return;
 
@@ -424,6 +434,7 @@ export function HomeScreen({ items: initialItems, zones: initialZones }: HomeScr
   function onItemPointerCancel(e: ReactPointerEvent<HTMLElement>) {
     e.stopPropagation();
     clearItemLongPress();
+    clearItemDragTouchAction(e.currentTarget);
     itemDragRef.current = null;
     setItemDrag(null);
     setDropTargetKey(null);
@@ -1173,30 +1184,29 @@ function ZoneSection({
     lastRects.current = rects;
   }
 
-  function startZoneLongPress(panel: HomeZonePanel, e: ReactPointerEvent) {
+  function startZoneDragFromHandle(panel: HomeZonePanel, e: ReactPointerEvent) {
     if (!panel.id || zoneDragDisabled) return;
+    // Grip-only: arm immediately. Card body has no drag listeners so it scrolls normally.
     clearLongPress();
     pointerOrigin.current = { x: e.clientX, y: e.clientY };
     lastPointer.current = { x: e.clientX, y: e.clientY };
     const handle = e.currentTarget as HTMLElement;
-    longPressTimer.current = window.setTimeout(() => {
-      const node = cardRefs.current[panel.id!];
-      if (!node) return;
-      const rect = naturalRect(node);
-      grabOffset.current = {
-        x: lastPointer.current.x - rect.left,
-        y: lastPointer.current.y - rect.top,
-      };
-      snapshotRects();
-      dragId.current = panel.id;
-      setDraggingId(panel.id);
-      setDragOffset({ x: 0, y: 0 });
-      try {
-        handle.setPointerCapture(e.pointerId);
-      } catch {
-        // ignore
-      }
-    }, LONG_PRESS_MS);
+    const node = cardRefs.current[panel.id];
+    if (!node) return;
+    const rect = naturalRect(node);
+    grabOffset.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+    snapshotRects();
+    dragId.current = panel.id;
+    setDraggingId(panel.id);
+    setDragOffset({ x: 0, y: 0 });
+    try {
+      handle.setPointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
   }
 
   function moveDragTo(targetId: string) {
@@ -1218,12 +1228,7 @@ function ZoneSection({
 
   function onZonePointerMove(e: ReactPointerEvent) {
     lastPointer.current = { x: e.clientX, y: e.clientY };
-    if (!dragId.current) {
-      const dx = e.clientX - pointerOrigin.current.x;
-      const dy = e.clientY - pointerOrigin.current.y;
-      if (Math.hypot(dx, dy) > 10) clearLongPress();
-      return;
-    }
+    if (!dragId.current) return;
     syncDragOffsetToFinger();
 
     const floating = cardRefs.current[dragId.current];
@@ -1275,7 +1280,7 @@ function ZoneSection({
             }
             onSelectItem={onSelectItem}
             onRename={() => onRename(panel)}
-            onZoneHandlePointerDown={(e) => startZoneLongPress(panel, e)}
+            onZoneHandlePointerDown={(e) => startZoneDragFromHandle(panel, e)}
             onZoneHandlePointerMove={onZonePointerMove}
             onZoneHandlePointerUp={endZoneDrag}
             onZoneHandlePointerCancel={endZoneDrag}
@@ -1470,7 +1475,7 @@ function ItemListRow({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
-      className={`flex h-9 w-full touch-none items-center gap-1.5 rounded-lg px-1.5 text-left transition-colors active:bg-black/[0.04] ${theme.rowHover} ${
+      className={`flex h-9 w-full touch-manipulation items-center gap-1.5 rounded-lg px-1.5 text-left transition-colors active:bg-black/[0.04] ${theme.rowHover} ${
         dragging ? "opacity-30" : "opacity-100"
       }`}
     >

@@ -6,7 +6,9 @@ import { Clock, Plus } from "lucide-react";
 import type { RecipeMatch } from "@/lib/recipe-match";
 import { FoodIcon } from "@/components/ui/food-icon";
 
-const LONG_PRESS_MS = 280;
+/** Match fridge home item-drag long-press timing. */
+const LONG_PRESS_MS = 420;
+const SCROLL_CANCEL_PX = 10;
 
 type CandidateCardProps = {
   match: RecipeMatch;
@@ -38,9 +40,15 @@ export function CandidateCard({
     }
   }
 
+  function clearDragTouchAction() {
+    const el = targetRef.current;
+    if (el) el.style.removeProperty("touch-action");
+  }
+
   function onPointerDown(e: ReactPointerEvent) {
     if (!onDragBegin || e.button !== 0) return;
     // Capture element now; React nulls currentTarget after the handler returns.
+    // Do NOT set touch-action:none here — parent scroll must keep working.
     targetRef.current = e.currentTarget as HTMLElement;
     pointerIdRef.current = e.pointerId;
     dragStarted.current = false;
@@ -54,6 +62,7 @@ export function CandidateCard({
       if (!el || pointerId == null) return;
       dragStarted.current = true;
       suppressClick.current = true;
+      el.style.touchAction = "none";
       try {
         el.setPointerCapture(pointerId);
       } catch {
@@ -68,11 +77,16 @@ export function CandidateCard({
     const dx = e.clientX - origin.current.x;
     const dy = e.clientY - origin.current.y;
     // Cancel long-press if the finger slides (scroll intent) before it arms.
-    if (Math.hypot(dx, dy) > 10) clearLongPress();
+    // Do not preventDefault — let the browser scroll.
+    if (Math.hypot(dx, dy) > SCROLL_CANCEL_PX) {
+      clearLongPress();
+      clearDragTouchAction();
+    }
   }
 
   function onPointerEnd() {
     clearLongPress();
+    if (!dragStarted.current) clearDragTouchAction();
     dragStarted.current = false;
     targetRef.current = null;
     pointerIdRef.current = null;
@@ -80,9 +94,9 @@ export function CandidateCard({
 
   return (
     <div
-      className={`flex h-full items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_6px_rgba(0,0,0,0.04)] transition-opacity ${
-        onDragBegin ? "touch-none" : "touch-manipulation"
-      } ${dragging ? "opacity-40" : "opacity-100"}`}
+      className={`flex h-full items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 shadow-[0_1px_6px_rgba(0,0,0,0.04)] transition-opacity touch-manipulation ${
+        dragging ? "opacity-40" : "opacity-100"
+      }`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerEnd}
